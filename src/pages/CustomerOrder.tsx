@@ -49,6 +49,7 @@ export default function CustomerOrder() {
   const [observations, setObservations] = useState<string>("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showWelcome, setShowWelcome] = useState(true);
   const toastTimeoutRef = useRef<number | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -410,213 +411,162 @@ export default function CustomerOrder() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setActiveTab("menu")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                activeTab === "menu"
-                  ? "bg-black text-white"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="hidden sm:inline">Cardápio</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("orders")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                activeTab === "orders"
-                  ? "bg-black text-white"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <History className="w-5 h-5" />
-              <span className="hidden sm:inline">Meus Pedidos</span>
-            </button>
-          </div>
-
-          <h1 className="text-xl font-bold text-gray-900">Restaurante</h1>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowCart(true)}
-              className="relative p-2 hover:bg-gray-100 rounded-lg transition"
-            >
-              <ShoppingCart className="w-6 h-6" />
-              {cart.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-black text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={logout}
-              className="p-2 hover:bg-gray-100 rounded-lg transition"
-              title="Sair"
-            >
-              <LogOut className="w-6 h-6" />
-            </button>
-          </div>
+    <>
+      {showWelcome && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 cursor-pointer select-none"
+          onClick={() => setShowWelcome(false)}
+        >
+          <img
+            src="/assets/imagewhite.png"
+            alt="Bem-vindo"
+            className="w-24 h-24 mb-6"
+          />
+          <h1 className="text-4xl font-bold text-white mb-4 text-center break-words max-[480px]:text-center">
+            Bem-vindo à Hamburgueria!
+          </h1>
+          <p className="text-lg text-white mb-8">
+            Clique na tela para acessar o cardápio.
+          </p>
         </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
-        {activeTab === "menu" ? (
-          <div className="grid grid-cols-1 gap-6">
-            {/* Menu Section */}
-            <div>
-              {/* Search and Filters */}
-              <div
-                ref={filterRef}
-                className="bg-white rounded-lg shadow-sm p-6 mb-6"
+      )}
+      <div
+        className={`min-h-screen bg-gray-50${showWelcome ? " pointer-events-none select-none blur-sm" : ""}`}
+      >
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setActiveTab("menu")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === "menu"
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
               >
-                <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Buscar pratos..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
+                <Home className="w-5 h-5" />
+                <span className="hidden sm:inline">Cardápio</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("orders")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === "orders"
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <History className="w-5 h-5" />
+                <span className="hidden sm:inline">Meus Pedidos</span>
+              </button>
+            </div>
 
-                  {/* Desktop: Botão de filtro ao lado da pesquisa */}
-                  <div className="hidden md:block relative w-64">
-                    <button
-                      onClick={() => setIsFilterOpen(!isFilterOpen)}
-                      className="w-full bg-black text-white px-6 py-2 rounded-lg font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Filter size={20} />
-                        <span>
-                          Filtrar:{" "}
-                          {selectedCategories.length > 0
-                            ? selectedCategories.length
-                            : "Todos"}
-                        </span>
-                      </div>
-                      <ChevronDown
-                        size={20}
-                        className={`transition-transform ${
-                          isFilterOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
+            <h1 className="text-3xl font-bold text-gray-900">Cardápio</h1>
 
-                    {isFilterOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
-                        {[
-                          "Todos",
-                          ...categories.filter((cat) => cat !== "todos"),
-                        ].map((category) => (
-                          <button
-                            key={category}
-                            onClick={() => handleCategorySelect(category)}
-                            className={`w-full text-left px-6 py-3 border-b border-gray-100 last:border-0 font-semibold transition-all flex items-center cursor-pointer ${
-                              (category === "Todos" &&
-                                selectedCategories.length === 0) ||
-                              selectedCategories.includes(category)
-                                ? "bg-black text-white"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tags dos filtros selecionados - Desktop (centralizadas abaixo) */}
-                {selectedCategories.length > 0 && (
-                  <div className="hidden md:flex justify-center mb-6">
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {selectedCategories.map((category) => (
-                        <span
-                          key={category}
-                          className="bg-black text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {category}
-                          <button
-                            onClick={() => removeCategory(category)}
-                            className="cursor-pointer transition-opacity"
-                          >
-                            <X size={16} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCart(true)}
+                className="relative p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <ShoppingCart className="w-6 h-6" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-black text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                  </span>
                 )}
+              </button>
+              <button
+                onClick={logout}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                title="Sair"
+              >
+                <LogOut className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        </header>
 
-                <div>
-                  <div className="mb-6 md:hidden">
-                    {/* Mobile: Botão menor centralizado, tags abaixo */}
-                    <div className="flex justify-center mb-4">
-                      <div className="relative w-full max-w-xs">
+        <main className="container mx-auto px-4 py-6">
+          {activeTab === "menu" ? (
+            <div className="grid grid-cols-1 gap-6">
+              {/* Menu Section */}
+              <div>
+                {/* Search and Filters */}
+                <div
+                  ref={filterRef}
+                  className="bg-white rounded-lg shadow-sm p-6 mb-6"
+                >
+                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar pratos..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                      />
+                      {searchQuery && (
                         <button
-                          onClick={() => setIsFilterOpen(!isFilterOpen)}
-                          className="w-full bg-black text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer text-sm"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                         >
-                          <div className="flex items-center gap-2">
-                            <Filter size={18} />
-                            <span>
-                              Filtrar:{" "}
-                              {selectedCategories.length > 0
-                                ? selectedCategories.length
-                                : "Todos"}
-                            </span>
-                          </div>
-                          <ChevronDown
-                            size={18}
-                            className={`transition-transform ${
-                              isFilterOpen ? "rotate-180" : ""
-                            }`}
-                          />
+                          <X size={16} />
                         </button>
-
-                        {isFilterOpen && (
-                          <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
-                            {[
-                              "Todos",
-                              ...categories.filter((cat) => cat !== "todos"),
-                            ].map((category) => (
-                              <button
-                                key={category}
-                                onClick={() => handleCategorySelect(category)}
-                                className={`w-full text-left px-4 py-2 border-b border-gray-100 last:border-0 font-semibold transition-all flex items-center cursor-pointer text-sm ${
-                                  (category === "Todos" &&
-                                    selectedCategories.length === 0) ||
-                                  selectedCategories.includes(category)
-                                    ? "bg-black text-white"
-                                    : "text-gray-700"
-                                }`}
-                              >
-                                {category}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
 
-                    {/* Tags dos filtros selecionados - Mobile */}
-                    {selectedCategories.length > 0 && (
+                    {/* Desktop: Botão de filtro ao lado da pesquisa */}
+                    <div className="hidden md:block relative w-64">
+                      <button
+                        onClick={() => setIsFilterOpen(!isFilterOpen)}
+                        className="w-full bg-black text-white px-6 py-2 rounded-lg font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Filter size={20} />
+                          <span>
+                            Filtrar:{" "}
+                            {selectedCategories.length > 0
+                              ? selectedCategories.length
+                              : "Todos"}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          size={20}
+                          className={`transition-transform ${
+                            isFilterOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {isFilterOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                          {[
+                            "Todos",
+                            ...categories.filter((cat) => cat !== "todos"),
+                          ].map((category) => (
+                            <button
+                              key={category}
+                              onClick={() => handleCategorySelect(category)}
+                              className={`w-full text-left px-6 py-3 border-b border-gray-100 last:border-0 font-semibold transition-all flex items-center cursor-pointer ${
+                                (category === "Todos" &&
+                                  selectedCategories.length === 0) ||
+                                selectedCategories.includes(category)
+                                  ? "bg-black text-white"
+                                  : "text-gray-700"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tags dos filtros selecionados - Desktop (centralizadas abaixo) */}
+                  {selectedCategories.length > 0 && (
+                    <div className="hidden md:flex justify-center mb-6">
                       <div className="flex flex-wrap justify-center gap-2">
                         {selectedCategories.map((category) => (
                           <span
@@ -633,432 +583,513 @@ export default function CustomerOrder() {
                           </span>
                         ))}
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Menu Items */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {menuItems
-                  .filter(
-                    (item) =>
-                      (selectedCategories.length === 0 ||
-                        selectedCategories.includes(item.category)) &&
-                      (searchQuery === "" ||
-                        item.name
-                          .toLowerCase()
-                          .includes(searchQuery.toLowerCase()) ||
-                        item.description
-                          .toLowerCase()
-                          .includes(searchQuery.toLowerCase())),
-                  )
-                  .map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
-                    >
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-lg mb-1">
-                            {item.name}
-                          </h3>
-                          <button
-                            onClick={() => openItemDetails(item)}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-3 block"
-                          >
-                            ver detalhes
-                          </button>
-                          <span className="text-xl font-bold text-gray-900 block">
-                            R$ {item.price.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex items-center">
-                          <button
-                            onClick={() => addToCart(item)}
-                            className="bg-black text-white px-3 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
-                          >
-                            <ShoppingCart className="w-4 h-4" />
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
                     </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Orders Tab */
-          <div>
-            {currentOrder ? (
-              <div className="max-w-2xl mx-auto">
-                <div className="bg-white rounded-lg shadow-sm p-8 mb-6">
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold mb-2">
-                      Status do Pedido
-                    </h2>
-                    <p className="text-gray-600">
-                      Pedido #{formatOrderNumericId(currentOrder.id)}
-                    </p>
-                  </div>
+                  )}
 
-                  <div className="space-y-6 h-64 flex items-center justify-center">
-                    {currentOrder.status === "pending" && (
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Clock className="w-10 h-10 text-yellow-600" />
+                  <div>
+                    <div className="mb-6 md:hidden">
+                      {/* Mobile: Botão menor centralizado, tags abaixo */}
+                      <div className="flex justify-center mb-4">
+                        <div className="relative w-full max-w-xs">
+                          <button
+                            onClick={() => setIsFilterOpen(!isFilterOpen)}
+                            className="w-full bg-black text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer text-sm"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Filter size={18} />
+                              <span>
+                                Filtrar:{" "}
+                                {selectedCategories.length > 0
+                                  ? selectedCategories.length
+                                  : "Todos"}
+                              </span>
+                            </div>
+                            <ChevronDown
+                              size={18}
+                              className={`transition-transform ${
+                                isFilterOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {isFilterOpen && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                              {[
+                                "Todos",
+                                ...categories.filter((cat) => cat !== "todos"),
+                              ].map((category) => (
+                                <button
+                                  key={category}
+                                  onClick={() => handleCategorySelect(category)}
+                                  className={`w-full text-left px-4 py-2 border-b border-gray-100 last:border-0 font-semibold transition-all flex items-center cursor-pointer text-sm ${
+                                    (category === "Todos" &&
+                                      selectedCategories.length === 0) ||
+                                    selectedCategories.includes(category)
+                                      ? "bg-black text-white"
+                                      : "text-gray-700"
+                                  }`}
+                                >
+                                  {category}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <h3 className="text-xl font-bold text-yellow-700 mb-2">
-                          Aguardando confirmação
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                          Seu pedido foi enviado e está aguardando aprovação do
-                          restaurante.
-                        </p>
-                        <button
-                          onClick={() => cancelOrder(currentOrder.id)}
-                          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2 mx-auto"
-                        >
-                          <X className="w-4 h-4" />
-                          Cancelar Pedido
-                        </button>
                       </div>
-                    )}
 
-                    {currentOrder.status === "preparing" && (
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <ChefHat className="w-10 h-10 text-blue-600" />
+                      {/* Tags dos filtros selecionados - Mobile */}
+                      {selectedCategories.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {selectedCategories.map((category) => (
+                            <span
+                              key={category}
+                              className="bg-black text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                            >
+                              {category}
+                              <button
+                                onClick={() => removeCategory(category)}
+                                className="cursor-pointer transition-opacity"
+                              >
+                                <X size={16} />
+                              </button>
+                            </span>
+                          ))}
                         </div>
-                        <h3 className="text-xl font-bold text-blue-700 mb-2">
-                          Preparando seu pedido
-                        </h3>
-                        <p className="text-gray-600">
-                          Os chefs estão preparando seu pedido com todo cuidado.
-                        </p>
-                      </div>
-                    )}
-
-                    {currentOrder.status === "ready" && (
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Utensils className="w-10 h-10 text-green-600" />
-                        </div>
-                        <h3 className="text-xl font-bold text-green-700 mb-2">
-                          Pedido pronto!
-                        </h3>
-                        <p className="text-gray-600">
-                          Seu pedido está pronto. Aguarde que levaremos à sua
-                          mesa em breve.
-                        </p>
-                      </div>
-                    )}
-
-                    {currentOrder.status === "completed" && (
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <CheckCircle className="w-10 h-10 text-green-600" />
-                        </div>
-                        <h3 className="text-xl font-bold text-green-700 mb-2">
-                          Pedido finalizado
-                        </h3>
-                        <p className="text-green-600 mb-4">
-                          Seu pedido foi finalizado. Aguarde — vamos levá-lo à
-                          sua mesa em breve.
-                        </p>
-                      </div>
-                    )}
-
-                    {currentOrder.status === "cancelled" && (
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <X className="w-10 h-10 text-red-600" />
-                        </div>
-                        <h3 className="text-xl font-bold text-red-700 mb-2">
-                          Pedido cancelado
-                        </h3>
-                        <p className="text-red-600">
-                          Seu pedido foi cancelado.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 text-lg mb-4">
-                  Você ainda não fez nenhum pedido.
-                </p>
-                <button
-                  onClick={handleNewOrder}
-                  className="bg-black text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition"
-                >
-                  Fazer Primeiro Pedido
-                </button>
-              </div>
-            )}
-
-            {userOrders.length > 1 && (
-              <div className="mt-8">
-                <h3 className="text-xl font-bold mb-4">Histórico de Pedidos</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {userOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      className={`bg-white rounded-lg shadow-sm p-4 cursor-pointer transition hover:shadow-md ${
-                        order.id === currentOrder?.id ? "ring-2 ring-black" : ""
-                      }`}
-                      onClick={() => handleViewOrder(order)}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-semibold">
-                          Pedido #{formatOrderNumericId(order.id)}
-                        </h4>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            order.status === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : order.status === "preparing"
-                                ? "bg-blue-100 text-blue-800"
-                                : order.status === "ready"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {order.status === "pending"
-                            ? "Aguardando"
-                            : order.status === "preparing"
-                              ? "Preparando"
-                              : order.status === "ready"
-                                ? "Pronto"
-                                : "Finalizado"}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-sm mb-1">
-                        R$ {order.total.toFixed(2)}
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        {new Date(order.created_at).toLocaleString("pt-BR")}
-                      </p>
+                      )}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
 
-      {/* Cart Modal */}
-      {showCart && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowCart(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
-                Carrinho
-              </h2>
-              <button
-                onClick={() => setShowCart(false)}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 max-h-[70vh] overflow-y-auto">
-              {cart.length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Carrinho vazio</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-3 mb-4">
-                    {cart.map((item) => (
+                {/* Menu Items */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {menuItems
+                    .filter(
+                      (item) =>
+                        (selectedCategories.length === 0 ||
+                          selectedCategories.includes(item.category)) &&
+                        (searchQuery === "" ||
+                          item.name
+                            .toLowerCase()
+                            .includes(searchQuery.toLowerCase()) ||
+                          item.description
+                            .toLowerCase()
+                            .includes(searchQuery.toLowerCase())),
+                    )
+                    .map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg"
+                        className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
                       >
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-12 h-12 object-cover rounded"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm truncate">
-                            {item.name}
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-lg mb-1">
+                              {item.name}
+                            </h3>
+                            <button
+                              onClick={() => openItemDetails(item)}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-3 block"
+                            >
+                              ver detalhes
+                            </button>
+                            <span className="text-xl font-bold text-gray-900 block">
+                              R$ {item.price.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => addToCart(item)}
+                              className="bg-black text-white px-3 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Orders Tab */
+            <div>
+              {currentOrder ? (
+                <div className="max-w-2xl mx-auto">
+                  <div className="bg-white rounded-lg shadow-sm p-8 mb-6">
+                    <div className="text-center mb-6">
+                      <h2 className="text-2xl font-bold mb-2">
+                        Status do Pedido
+                      </h2>
+                      <p className="text-gray-600">
+                        Pedido #{formatOrderNumericId(currentOrder.id)}
+                      </p>
+                    </div>
+
+                    <div className="space-y-6 h-64 flex items-center justify-center">
+                      {currentOrder.status === "pending" && (
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Clock className="w-10 h-10 text-yellow-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-yellow-700 mb-2">
+                            Aguardando confirmação
+                          </h3>
+                          <p className="text-gray-600 mb-4">
+                            Seu pedido foi enviado e está aguardando aprovação
+                            do restaurante.
+                          </p>
+                          <button
+                            onClick={() => cancelOrder(currentOrder.id)}
+                            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2 mx-auto"
+                          >
+                            <X className="w-4 h-4" />
+                            Cancelar Pedido
+                          </button>
+                        </div>
+                      )}
+
+                      {currentOrder.status === "preparing" && (
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ChefHat className="w-10 h-10 text-blue-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-blue-700 mb-2">
+                            Preparando seu pedido
+                          </h3>
+                          <p className="text-gray-600">
+                            Os chefs estão preparando seu pedido com todo
+                            cuidado.
+                          </p>
+                        </div>
+                      )}
+
+                      {currentOrder.status === "ready" && (
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Utensils className="w-10 h-10 text-green-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-green-700 mb-2">
+                            Pedido pronto!
+                          </h3>
+                          <p className="text-gray-600">
+                            Seu pedido está pronto. Aguarde que levaremos à sua
+                            mesa em breve.
+                          </p>
+                        </div>
+                      )}
+
+                      {currentOrder.status === "completed" && (
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle className="w-10 h-10 text-green-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-green-700 mb-2">
+                            Pedido finalizado
+                          </h3>
+                          <p className="text-green-600 mb-4">
+                            Seu pedido foi finalizado. Aguarde — vamos levá-lo à
+                            sua mesa em breve.
+                          </p>
+                        </div>
+                      )}
+
+                      {currentOrder.status === "cancelled" && (
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <X className="w-10 h-10 text-red-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-red-700 mb-2">
+                            Pedido cancelado
+                          </h3>
+                          <p className="text-red-600">
+                            Seu pedido foi cancelado.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500 text-lg mb-4">
+                    Você ainda não fez nenhum pedido.
+                  </p>
+                  <button
+                    onClick={handleNewOrder}
+                    className="bg-black text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition"
+                  >
+                    Fazer Primeiro Pedido
+                  </button>
+                </div>
+              )}
+
+              {userOrders.length > 1 && (
+                <div className="mt-8">
+                  <h3 className="text-xl font-bold mb-4">
+                    Histórico de Pedidos
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {userOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className={`bg-white rounded-lg shadow-sm p-4 cursor-pointer transition hover:shadow-md ${
+                          order.id === currentOrder?.id
+                            ? "ring-2 ring-black"
+                            : ""
+                        }`}
+                        onClick={() => handleViewOrder(order)}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-semibold">
+                            Pedido #{formatOrderNumericId(order.id)}
                           </h4>
-                          <p className="text-gray-600 text-sm">
-                            R$ {item.price.toFixed(2)} cada
-                          </p>
-                          <p className="text-gray-800 font-semibold text-sm">
-                            Total: R$ {(item.price * item.quantity).toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="p-1 hover:bg-gray-200 rounded"
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-semibold ${
+                              order.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : order.status === "preparing"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : order.status === "ready"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                            }`}
                           >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="font-bold w-6 text-center text-sm">
-                            {item.quantity}
+                            {order.status === "pending"
+                              ? "Aguardando"
+                              : order.status === "preparing"
+                                ? "Preparando"
+                                : order.status === "ready"
+                                  ? "Pronto"
+                                  : "Finalizado"}
                           </span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
                         </div>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="p-1 hover:bg-red-100 text-red-600 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <p className="text-gray-600 text-sm mb-1">
+                          R$ {order.total.toFixed(2)}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          {new Date(order.created_at).toLocaleString("pt-BR")}
+                        </p>
                       </div>
                     ))}
                   </div>
-
-                  <div className="border-t pt-4 space-y-4">
-                    <div className="flex justify-between items-center text-lg font-bold">
-                      <span>Total:</span>
-                      <span>R$ {getTotal().toFixed(2)}</span>
-                    </div>
-
-                    {/* Payment Method Select */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Forma de Pagamento *
-                      </label>
-                      <select
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
-                      >
-                        <option value="">Selecione...</option>
-                        <option value="pix">PIX</option>
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="cartao_credito">
-                          Cartão de Crédito
-                        </option>
-                        <option value="cartao_debito">Cartão de Débito</option>
-                      </select>
-                    </div>
-
-                    {/* Observations Textarea */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Observações (opcional)
-                      </label>
-                      <textarea
-                        value={observations}
-                        onChange={(e) => setObservations(e.target.value)}
-                        placeholder="Ex: remover cebola, sem molho, etc."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none resize-none"
-                        rows={3}
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleFinishOrder}
-                      disabled={!paymentMethod || loading}
-                      className="w-full bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? "Finalizando..." : "Finalizar Pedido"}
-                    </button>
-
-                    {!paymentMethod && (
-                      <p className="text-red-500 text-xs text-center">
-                        Selecione a forma de pagamento
-                      </p>
-                    )}
-                  </div>
-                </>
+                </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </main>
 
-      {/* Item Details Modal */}
-      {showItemDetails && selectedItem && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowItemDetails(false)}
-        >
+        {/* Cart Modal */}
+        {showCart && (
           <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowCart(false)}
           >
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-xl font-bold">{selectedItem.name}</h2>
-              <button
-                onClick={() => setShowItemDetails(false)}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            <div
+              className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Carrinho
+                </h2>
+                <button
+                  onClick={() => setShowCart(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 max-h-[70vh] overflow-y-auto">
+                {cart.length === 0 ? (
+                  <div className="text-center py-8">
+                    <ShoppingCart className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500">Carrinho vazio</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3 mb-4">
+                      {cart.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg"
+                        >
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm truncate">
+                              {item.name}
+                            </h4>
+                            <p className="text-gray-600 text-sm">
+                              R$ {item.price.toFixed(2)} cada
+                            </p>
+                            <p className="text-gray-800 font-semibold text-sm">
+                              Total: R${" "}
+                              {(item.price * item.quantity).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="font-bold w-6 text-center text-sm">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="p-1 hover:bg-red-100 text-red-600 rounded"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <div className="flex justify-between items-center text-lg font-bold">
+                        <span>Total:</span>
+                        <span>R$ {getTotal().toFixed(2)}</span>
+                      </div>
+
+                      {/* Payment Method Select */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Forma de Pagamento *
+                        </label>
+                        <select
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                        >
+                          <option value="">Selecione...</option>
+                          <option value="pix">PIX</option>
+                          <option value="dinheiro">Dinheiro</option>
+                          <option value="cartao_credito">
+                            Cartão de Crédito
+                          </option>
+                          <option value="cartao_debito">
+                            Cartão de Débito
+                          </option>
+                        </select>
+                      </div>
+
+                      {/* Observations Textarea */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Observações (opcional)
+                        </label>
+                        <textarea
+                          value={observations}
+                          onChange={(e) => setObservations(e.target.value)}
+                          placeholder="Ex: remover cebola, sem molho, etc."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none resize-none"
+                          rows={3}
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleFinishOrder}
+                        disabled={!paymentMethod || loading}
+                        className="w-full bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? "Finalizando..." : "Finalizar Pedido"}
+                      </button>
+
+                      {!paymentMethod && (
+                        <p className="text-red-500 text-xs text-center">
+                          Selecione a forma de pagamento
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
+          </div>
+        )}
 
-            <div className="p-4">
-              <img
-                src={selectedItem.image_url}
-                alt={selectedItem.name}
-                className="w-48 h-48 object-cover rounded-lg mb-4 mx-auto"
-              />
+        {/* Item Details Modal */}
+        {showItemDetails && selectedItem && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowItemDetails(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-xl font-bold">{selectedItem.name}</h2>
+                <button
+                  onClick={() => setShowItemDetails(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold text-lg mb-2">Detalhes</h3>
-                  <p className="text-gray-600">{selectedItem.description}</p>
-                </div>
+              <div className="p-4">
+                <img
+                  src={selectedItem.image_url}
+                  alt={selectedItem.name}
+                  className="w-48 h-48 object-cover rounded-lg mb-4 mx-auto"
+                />
 
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <span className="text-2xl font-bold text-gray-900">
-                    R$ {selectedItem.price.toFixed(2)}
-                  </span>
-                  <button
-                    onClick={() => {
-                      addToCart(selectedItem);
-                      setShowItemDetails(false);
-                    }}
-                    className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
-                  >
-                    <ShoppingCart className="w-4 h-4" />
-                    Adicionar ao Carrinho
-                  </button>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Detalhes</h3>
+                    <p className="text-gray-600">{selectedItem.description}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <span className="text-2xl font-bold text-gray-900">
+                      R$ {selectedItem.price.toFixed(2)}
+                    </span>
+                    <button
+                      onClick={() => {
+                        addToCart(selectedItem);
+                        setShowItemDetails(false);
+                      }}
+                      className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Adicionar ao Carrinho
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showToast && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
-          <div className="bg-green-600 bg-opacity-90 text-white px-4 py-3 rounded-lg shadow-md max-w-lg w-full text-center">
-            {toastMessage}
+        {showToast && (
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+            <div className="bg-green-600 bg-opacity-90 text-white px-4 py-3 rounded-lg shadow-md max-w-lg w-full text-center">
+              {toastMessage}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

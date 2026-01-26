@@ -1,27 +1,26 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { LogIn } from 'lucide-react';
+import { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 
 interface LoginProps {
   onSwitchToRegister: () => void;
 }
 
 export default function Login({ onSwitchToRegister }: LoginProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     const success = await login(username, password);
 
     if (!success) {
-      setError('Usuário ou senha incorretos');
+      setError("Usuário ou senha incorretos");
       setLoading(false);
     }
   };
@@ -29,17 +28,19 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2">ALL BLACK</h1>
-          <p className="text-gray-400">Hamburgueria Premium</p>
-        </div>
-
         <div className="bg-white rounded-lg shadow-2xl p-8">
-          <div className="flex items-center justify-center mb-6">
-            <LogIn className="w-8 h-8 text-black" />
+          <div className="mb-6 flex flex-col items-center">
+            <img
+              src="/assets/image.png"
+              className="w-16 h-16 object-contain mb-2"
+            />
+            <h1 className="text-4xl font-bold text-black mb-2 text-center">
+              Hamburgueria
+            </h1>
           </div>
-
-          <h2 className="text-2xl font-bold text-center mb-6 text-black">Login</h2>
+          <h2 className="text-2xl font-bold text-center mb-6 text-black">
+            Cardápio
+          </h2>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
@@ -53,7 +54,7 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
                 Informe sua Mesa
               </label>
               <input
-			  	placeholder='Ex: Mesa01'
+                placeholder="Ex: Mesa01"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -67,7 +68,7 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
                 Senha
               </label>
               <input
-			  	placeholder='1234'
+                placeholder="1234"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -81,7 +82,7 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
               disabled={loading}
               className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? "Entrando..." : "Entrar"}
             </button>
           </form>
 
@@ -90,7 +91,8 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
               onClick={onSwitchToRegister}
               className="text-sm text-gray-600 hover:text-black transition"
             >
-              Não tem uma conta? <span className="font-semibold">Cadastre-se</span>
+              Não tem uma conta?{" "}
+              <span className="font-semibold">Cadastre-se</span>
             </button>
           </div>
         </div>

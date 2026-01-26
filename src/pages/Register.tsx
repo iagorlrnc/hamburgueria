@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { UserPlus } from "lucide-react";
 import { toast } from "react-toastify";
 
 interface RegisterProps {
@@ -63,16 +62,17 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2">ALL BLACK</h1>
-          <p className="text-gray-400">Hamburgueria Premium</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-2xl p-8">
-          <div className="flex items-center justify-center mb-6">
-            <UserPlus className="w-8 h-8 text-black" />
+        <div className="mb-6 flex flex-col items-center">
+            <img
+              src="/assets/imagewhite.png"
+              className="w-16 h-16 object-contain mb-2"
+            />
+            <h1 className="text-4xl font-bold text-white mb-2 text-center">
+              Hamburgueria
+            </h1>
           </div>
 
+        <div className="bg-white rounded-lg shadow-2xl p-8">
           <h2 className="text-2xl font-bold text-center mb-6 text-black">
             Cadastro
           </h2>
