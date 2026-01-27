@@ -3,24 +3,42 @@ import { useAuth } from "../contexts/AuthContext";
 
 interface LoginProps {
   onSwitchToRegister: () => void;
+  onSwitchToEmployee: () => void;
 }
 
-export default function Login({ onSwitchToRegister }: LoginProps) {
+export default function Login({
+  onSwitchToRegister,
+  onSwitchToEmployee,
+}: LoginProps) {
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numValue = parseInt(value, 10);
+
+    if (!isNaN(numValue) && numValue >= 1 && numValue <= 9) {
+      setUsername(`0${numValue}`);
+    } else if (!isNaN(numValue) && numValue >= 10 && numValue <= 99) {
+      setUsername(numValue.toString());
+    } else if (numValue > 99) {
+      setUsername("99");
+    } else {
+      setUsername(value);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const success = await login(username, password);
+    const success = await login(username);
 
     if (!success) {
-      setError("Usuário ou senha incorretos");
+      setError("Usuário não encontrado");
       setLoading(false);
     }
   };
@@ -54,24 +72,12 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
                 Informe sua Mesa
               </label>
               <input
-                placeholder="Ex: Mesa01"
-                type="text"
+                placeholder="Ex: 01"
+                type="number"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Senha
-              </label>
-              <input
-                placeholder="1234"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handleUsernameChange}
+                min="1"
+                max="99"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none transition"
                 required
               />
@@ -88,11 +94,19 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
 
           <div className="mt-6 text-center">
             <button
+              onClick={onSwitchToEmployee}
+              className="block w-full text-sm text-gray-600 hover:text-black transition mb-3"
+            >
+              Acesso Funcionário{" "}
+              <span className="font-semibold">Login Funcionário</span>
+            </button>
+
+            <button
               onClick={onSwitchToRegister}
               className="text-sm text-gray-600 hover:text-black transition"
             >
-              Não tem uma conta?{" "}
-              <span className="font-semibold">Cadastre-se</span>
+              Acesso Administrador{" "}
+              <span className="font-semibold">Login Admin</span>
             </button>
           </div>
         </div>

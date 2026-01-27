@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
+import AdminLogin from "./pages/AdminLogin";
+import EmployeeLogin from "./pages/EmployeeLogin";
 import CustomerOrder from "./pages/CustomerOrder";
-import AdminDashboard from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard.tsx";
+import EmployeeDashboard from "./pages/EmployeeDashboard";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [showRegister, setShowRegister] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showEmployeeLogin, setShowEmployeeLogin] = useState(false);
 
   if (loading) {
     return (
@@ -20,14 +23,33 @@ function AppContent() {
   }
 
   if (!user) {
-    return showRegister ? (
-      <Register onSwitchToLogin={() => setShowRegister(false)} />
-    ) : (
-      <Login onSwitchToRegister={() => setShowRegister(true)} />
+    if (showEmployeeLogin) {
+      return (
+        <EmployeeLogin onSwitchToLogin={() => setShowEmployeeLogin(false)} />
+      );
+    }
+
+    if (showAdminLogin) {
+      return <AdminLogin onSwitchToLogin={() => setShowAdminLogin(false)} />;
+    }
+
+    return (
+      <Login
+        onSwitchToRegister={() => setShowAdminLogin(true)}
+        onSwitchToEmployee={() => setShowEmployeeLogin(true)}
+      />
     );
   }
 
-  return user.is_admin ? <AdminDashboard /> : <CustomerOrder />;
+  if (user.is_admin) {
+    return <AdminDashboard />;
+  }
+
+  if (user.is_employee) {
+    return <EmployeeDashboard />;
+  }
+
+  return <CustomerOrder />;
 }
 
 function App() {

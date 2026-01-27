@@ -10,6 +10,7 @@ export interface User {
   username: string;
   phone: string;
   is_admin: boolean;
+  is_employee?: boolean;
 }
 
 export interface MenuItem {

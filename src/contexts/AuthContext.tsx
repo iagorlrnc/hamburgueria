@@ -10,7 +10,11 @@ import { supabase, User } from "../lib/supabase";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (
+    username: string,
+    password?: string,
+    isEmployee?: boolean,
+  ) => Promise<boolean>;
   register: (
     username: string,
     phone: string,
@@ -37,17 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (
     username: string,
-    password: string,
+    password?: string,
+    isEmployee: boolean = false,
   ): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", username)
-        .eq("password_hash", password)
-        .maybeSingle();
+      let query = supabase.from("users").select("*").eq("username", username);
+
+      if (isEmployee) {
+        // Employee login - precisa verificar senha E is_employee
+        query = query.eq("is_employee", true).eq("is_admin", false);
+      } else if (password) {
+        // Admin login - precisa verificar senha E is_admin
+        query = query.eq("is_admin", true);
+      } else {
+        // Customer login - não precisa de senha
+        query = query.eq("is_admin", false).eq("is_employee", false);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (error || !data) {
+        return false;
+      }
+
+      // Se precisa verificar senha (Admin ou Employee), verificar aqui
+      if ((isEmployee || password) && data.password_hash !== password) {
         return false;
       }
 
@@ -56,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: data.username,
         phone: data.phone,
         is_admin: data.is_admin,
+        is_employee: data.is_employee,
       };
 
       setUser(userData);

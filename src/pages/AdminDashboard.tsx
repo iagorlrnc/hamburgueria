@@ -70,6 +70,7 @@ export default function AdminDashboard() {
     phone: "",
     password: "",
     is_admin: false,
+    is_employee: false,
   });
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
@@ -170,11 +171,32 @@ export default function AdminDashboard() {
     e.preventDefault();
 
     try {
+      // Verificar se o usuário já existe
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("username")
+        .eq("username", userFormData.username)
+        .maybeSingle();
+
+      if (existingUser) {
+        toast.error("Erro: Este usuário já existe no sistema!");
+        return;
+      }
+
+      // Gerar email e telefone padrão para clientes
+      const isCliente = !userFormData.is_admin && !userFormData.is_employee;
+      const email = isCliente
+        ? `mesa${userFormData.username}@allblack.com`
+        : `${userFormData.username}@allblack.com`;
+      const phone = userFormData.phone || "0000000000";
+
       const { error } = await supabase.from("users").insert({
         username: userFormData.username,
-        phone: userFormData.phone,
+        email: email,
+        phone: phone,
         password_hash: userFormData.password,
         is_admin: userFormData.is_admin,
+        is_employee: userFormData.is_employee,
       });
 
       if (error) {
@@ -188,6 +210,7 @@ export default function AdminDashboard() {
         phone: "",
         password: "",
         is_admin: false,
+        is_employee: false,
       });
       fetchUsers();
       toast.success("Usuário criado com sucesso!");
@@ -292,7 +315,24 @@ export default function AdminDashboard() {
     ) {
       await supabase
         .from("users")
-        .update({ is_admin: !currentAdmin })
+        .update({ is_admin: !currentAdmin, is_employee: false })
+        .eq("id", userId);
+      fetchUsers();
+    }
+  };
+
+  const handleToggleEmployee = async (
+    userId: string,
+    currentEmployee: boolean,
+  ) => {
+    if (
+      confirm(
+        `Deseja ${currentEmployee ? "remover" : "conceder"} permissão de funcionário?`,
+      )
+    ) {
+      await supabase
+        .from("users")
+        .update({ is_employee: !currentEmployee, is_admin: false })
         .eq("id", userId);
       fetchUsers();
     }
@@ -745,7 +785,7 @@ export default function AdminDashboard() {
                       >
                         <div>
                           <p className="font-medium text-gray-900">
-                            Pedido da {order.users?.username || "Cliente"} •{" "}
+                            Pedido da Mesa {order.users?.username || "Cliente"} •{" "}
                             {new Date(order.created_at).toLocaleString("pt-BR")}
                           </p>
                           <p className="text-sm text-gray-600">
@@ -838,59 +878,83 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {menuItems
-                    .filter((item) => item.active)
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="border rounded-lg overflow-hidden"
-                      >
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-full aspect-square object-cover"
-                        />
-                        <div className="p-3">
-                          <h3 className="font-bold text-base mb-1 text-black">
-                            {item.name}
-                          </h3>
-                          <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">
-                            {item.category}
-                          </p>
-                          <p className="text-gray-600 text-sm mb-2">
-                            {item.description}
-                          </p>
-                          <p className="text-lg font-bold text-black mb-3">
-                            R$ {item.price.toFixed(2)}
-                          </p>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEditItem(item)}
-                              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-gray-100 text-black rounded hover:bg-gray-200 transition text-sm"
+                {/* Menu Items */}
+                {(() => {
+                  const activeItems = menuItems.filter((item) => item.active);
+
+                  // Group items by category
+                  const groupedItems = activeItems.reduce(
+                    (acc, item) => {
+                      if (!acc[item.category]) {
+                        acc[item.category] = [];
+                      }
+                      acc[item.category].push(item);
+                      return acc;
+                    },
+                    {} as Record<string, MenuItem[]>,
+                  );
+
+                  return Object.entries(groupedItems).map(
+                    ([category, items]) => (
+                      <div key={category} className="mb-8">
+                        <h3 className="text-xl font-bold text-black mb-4 border-b pb-2">
+                          {category.replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="border rounded-lg overflow-hidden"
                             >
-                              <Edit2 className="w-3 h-3" />
-                              Editar
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleToggleActive(item.id, item.active)
-                              }
-                              className="flex-1 px-2 py-1 bg-gray-100 text-black rounded hover:bg-gray-200 transition text-xs"
-                            >
-                              Desativar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="w-full aspect-square object-cover"
+                              />
+                              <div className="p-3">
+                                <h3 className="font-bold text-base mb-1 text-black">
+                                  {item.name}
+                                </h3>
+                                <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">
+                                  {item.category}
+                                </p>
+                                <p className="text-gray-600 text-sm mb-2">
+                                  {item.description}
+                                </p>
+                                <p className="text-lg font-bold text-black mb-3">
+                                  R$ {item.price.toFixed(2)}
+                                </p>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleEditItem(item)}
+                                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-gray-100 text-black rounded hover:bg-gray-200 transition text-sm"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleToggleActive(item.id, item.active)
+                                    }
+                                    className="flex-1 px-2 py-1 bg-gray-100 text-black rounded hover:bg-gray-200 transition text-xs"
+                                  >
+                                    Desativar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                </div>
+                    ),
+                  );
+                })()}
               </div>
             )}
 
@@ -926,7 +990,7 @@ export default function AdminDashboard() {
                               onClick={() => toggleUserAccordion(username)}
                               className="w-full text-left p-4 font-bold text-lg text-black hover:bg-gray-100 transition flex items-center justify-between"
                             >
-                              <span>Pedidos da {username}</span>
+                              <span>Pedidos da Mesa {username}</span>
                               <ChevronDown
                                 className={`w-5 h-5 transition-transform ${expandedUsers.has(username) ? "rotate-180" : ""}`}
                               />
@@ -1132,6 +1196,9 @@ export default function AdminDashboard() {
                         <th className="px-4 py-3 text-left text-black">
                           Admin
                         </th>
+                        <th className="px-4 py-3 text-left text-black">
+                          Funcionário
+                        </th>
                         <th className="px-4 py-3 text-center text-black">
                           Ações
                         </th>
@@ -1158,16 +1225,42 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex gap-2 justify-center">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                user.is_employee
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {user.is_employee ? "Sim" : "Não"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2 justify-center flex-wrap">
                               <button
                                 onClick={() =>
                                   handleToggleAdmin(user.id, user.is_admin)
                                 }
-                                className="w-32 px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition text-sm"
+                                className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition text-sm"
+                                title="Gerenciar permissão de admin"
                               >
                                 {user.is_admin
                                   ? "Remover Admin"
                                   : "Tornar Admin"}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleToggleEmployee(
+                                    user.id,
+                                    user.is_employee,
+                                  )
+                                }
+                                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
+                                title="Gerenciar permissão de funcionário"
+                              >
+                                {user.is_employee
+                                  ? "Remover Func"
+                                  : "Tornar Func"}
                               </button>
                               <button
                                 onClick={() =>
@@ -1377,6 +1470,7 @@ export default function AdminDashboard() {
                     phone: "",
                     password: "",
                     is_admin: false,
+                    is_employee: false,
                   });
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0"
@@ -1387,79 +1481,162 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleSaveUser} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome
-                  </label>
-                  <input
-                    type="text"
-                    value={userFormData.username}
-                    onChange={(e) =>
-                      setUserFormData({
-                        ...userFormData,
-                        username: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Telefone
-                  </label>
-                  <input
-                    type="tel"
-                    value={userFormData.phone}
-                    onChange={(e) =>
-                      setUserFormData({
-                        ...userFormData,
-                        phone: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Senha
-                  </label>
-                  <input
-                    type="password"
-                    value={userFormData.password}
-                    onChange={(e) =>
-                      setUserFormData({
-                        ...userFormData,
-                        password: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
-
+                {/* Tipo de Usuário - PRIMEIRO */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de Usuário
                   </label>
                   <select
-                    value={userFormData.is_admin ? "admin" : "cliente"}
-                    onChange={(e) =>
-                      setUserFormData({
-                        ...userFormData,
-                        is_admin: e.target.value === "admin",
-                      })
+                    value={
+                      userFormData.is_admin
+                        ? "admin"
+                        : userFormData.is_employee
+                          ? "employee"
+                          : "cliente"
                     }
+                    onChange={(e) => {
+                      if (e.target.value === "admin") {
+                        setUserFormData({
+                          ...userFormData,
+                          is_admin: true,
+                          is_employee: false,
+                        });
+                      } else if (e.target.value === "employee") {
+                        setUserFormData({
+                          ...userFormData,
+                          is_admin: false,
+                          is_employee: true,
+                        });
+                      } else {
+                        setUserFormData({
+                          ...userFormData,
+                          is_admin: false,
+                          is_employee: false,
+                        });
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
                     required
                   >
                     <option value="cliente">Cliente</option>
+                    <option value="employee">Funcionário</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
+
+                {/* Campos para CLIENTE */}
+                {!userFormData.is_admin && !userFormData.is_employee && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Número da Mesa
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={userFormData.username}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = parseInt(value, 10);
+
+                        if (
+                          !isNaN(numValue) &&
+                          numValue >= 1 &&
+                          numValue <= 9
+                        ) {
+                          // Números 1-9 viram 01-09
+                          setUserFormData({
+                            ...userFormData,
+                            username: `0${numValue}`,
+                          });
+                        } else if (
+                          !isNaN(numValue) &&
+                          numValue >= 10 &&
+                          numValue <= 99
+                        ) {
+                          // Números 10-99 ficam como estão
+                          setUserFormData({
+                            ...userFormData,
+                            username: numValue.toString(),
+                          });
+                        } else if (numValue > 99) {
+                          // Limita ao máximo de 99
+                          setUserFormData({
+                            ...userFormData,
+                            username: "99",
+                          });
+                        } else {
+                          // Campo vazio ou inválido
+                          setUserFormData({
+                            ...userFormData,
+                            username: value,
+                          });
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Campos para FUNCIONÁRIO E ADMIN */}
+                {(userFormData.is_admin || userFormData.is_employee) && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nome
+                      </label>
+                      <input
+                        type="text"
+                        value={userFormData.username}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            username: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Telefone
+                      </label>
+                      <input
+                        type="tel"
+                        value={userFormData.phone}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            phone: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Senha
+                      </label>
+                      <input
+                        type="password"
+                        value={userFormData.password}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="p-6 border-t flex-shrink-0">

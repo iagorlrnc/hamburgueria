@@ -106,6 +106,7 @@ export default function CustomerOrder() {
         return allSelected ? [] : newSelection;
       });
     }
+    setIsFilterOpen(false);
   };
 
   const removeCategory = (category: string) => {
@@ -434,7 +435,7 @@ export default function CustomerOrder() {
         className={`min-h-screen bg-gray-50${showWelcome ? " pointer-events-none select-none blur-sm" : ""}`}
       >
         {/* Header */}
-        <header className="bg-white shadow-sm border-b">
+        <header className="fixed top-0 left-0 right-0 z-40 bg-white shadow-sm border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -486,7 +487,7 @@ export default function CustomerOrder() {
           </div>
         </header>
 
-        <main className="container mx-auto px-4 py-6">
+        <main className="container mx-auto px-4 py-6 pt-28">
           {activeTab === "menu" ? (
             <div className="grid grid-cols-1 gap-6">
               {/* Menu Section */}
@@ -556,7 +557,9 @@ export default function CustomerOrder() {
                                   : "text-gray-700"
                               }`}
                             >
-                              {category}
+                              {category.replace(/\b\w/g, (l) =>
+                                l.toUpperCase(),
+                              )}
                             </button>
                           ))}
                         </div>
@@ -573,7 +576,7 @@ export default function CustomerOrder() {
                             key={category}
                             className="bg-black text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
                           >
-                            {category}
+                            {category.replace(/\b\w/g, (l) => l.toUpperCase())}
                             <button
                               onClick={() => removeCategory(category)}
                               className="cursor-pointer transition-opacity"
@@ -629,7 +632,9 @@ export default function CustomerOrder() {
                                       : "text-gray-700"
                                   }`}
                                 >
-                                  {category}
+                                  {category.replace(/\b\w/g, (l) =>
+                                    l.toUpperCase(),
+                                  )}
                                 </button>
                               ))}
                             </div>
@@ -645,7 +650,9 @@ export default function CustomerOrder() {
                               key={category}
                               className="bg-black text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
                             >
-                              {category}
+                              {category.replace(/\b\w/g, (l) =>
+                                l.toUpperCase(),
+                              )}
                               <button
                                 onClick={() => removeCategory(category)}
                                 className="cursor-pointer transition-opacity"
@@ -661,58 +668,81 @@ export default function CustomerOrder() {
                 </div>
 
                 {/* Menu Items */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {menuItems
-                    .filter(
-                      (item) =>
-                        (selectedCategories.length === 0 ||
-                          selectedCategories.includes(item.category)) &&
-                        (searchQuery === "" ||
-                          item.name
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase()) ||
-                          item.description
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase())),
-                    )
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
-                      >
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={item.image_url}
-                            alt={item.name}
-                            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-lg mb-1">
-                              {item.name}
-                            </h3>
-                            <button
-                              onClick={() => openItemDetails(item)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-3 block"
+                {(() => {
+                  const filteredItems = menuItems.filter(
+                    (item) =>
+                      (selectedCategories.length === 0 ||
+                        selectedCategories.includes(item.category)) &&
+                      (searchQuery === "" ||
+                        item.name
+                          .toLowerCase()
+                          .includes(searchQuery.toLowerCase()) ||
+                        item.description
+                          .toLowerCase()
+                          .includes(searchQuery.toLowerCase())),
+                  );
+
+                  // Group items by category
+                  const groupedItems = filteredItems.reduce(
+                    (acc, item) => {
+                      if (!acc[item.category]) {
+                        acc[item.category] = [];
+                      }
+                      acc[item.category].push(item);
+                      return acc;
+                    },
+                    {} as Record<string, MenuItem[]>,
+                  );
+
+                  return Object.entries(groupedItems).map(
+                    ([category, items]) => (
+                      <div key={category} className="mb-8">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4 border-b pb-2">
+                          {category.replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                          {items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
                             >
-                              ver detalhes
-                            </button>
-                            <span className="text-xl font-bold text-gray-900 block">
-                              R$ {item.price.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center">
-                            <button
-                              onClick={() => addToCart(item)}
-                              className="bg-black text-white px-3 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
-                            >
-                              <ShoppingCart className="w-4 h-4" />
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
+                              <div className="flex items-center gap-4">
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-bold text-lg mb-1">
+                                    {item.name}
+                                  </h3>
+                                  <button
+                                    onClick={() => openItemDetails(item)}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-3 block"
+                                  >
+                                    ver detalhes
+                                  </button>
+                                  <span className="text-xl font-bold text-gray-900 block">
+                                    R$ {item.price.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <button
+                                    onClick={() => addToCart(item)}
+                                    className="bg-black text-white px-3 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
+                                  >
+                                    <ShoppingCart className="w-4 h-4" />
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                </div>
+                    ),
+                  );
+                })()}
               </div>
             </div>
           ) : (
