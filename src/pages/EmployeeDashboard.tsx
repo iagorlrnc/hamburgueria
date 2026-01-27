@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LogOut, Clock, CheckCircle, ChefHat, Utensils, X } from "lucide-react";
+import { LogOut, Clock, CheckCircle, ChefHat, Utensils} from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase, Order, OrderItem, MenuItem } from "../lib/supabase";
 
