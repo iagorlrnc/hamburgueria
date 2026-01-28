@@ -1,35 +1,10 @@
-/*
-  # All Black Hamburgueria - Complete Multi-Role Database Schema
-  
-  Schema completo com suporte para 3 tipos de usuário:
-  1. Cliente (is_admin=false, is_employee=false)
-  2. Funcionário (is_admin=false, is_employee=true)
-  3. Administrador (is_admin=true, is_employee=false)
-
-  Este arquivo consolida TODAS as funcionalidades:
-  - Schema original
-  - Novas funcionalidades multi-role
-  - RLS policies
-  - Índices de performance
-  - Dados padrão
-
-  Data: 27 de Janeiro de 2026
-*/
-
--- ============================================================================
--- 1. DROPAR TABELAS ANTIGAS (limpeza)
--- ============================================================================
+============================================================
 
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS menu_items CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- ============================================================================
--- 2. CRIAR TABELAS
--- ============================================================================
-
--- Tabela de Usuários
 CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   username text UNIQUE NOT NULL,
@@ -37,11 +12,11 @@ CREATE TABLE users (
   phone text NOT NULL,
   password_hash text NOT NULL,
   is_admin boolean DEFAULT false,
-  is_employee boolean DEFAULT false,  -- NOVO: suporte a funcionários
-  created_at timestamptz DEFAULT now()
+  is_employee boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
--- Tabela de Itens do Menu
 CREATE TABLE menu_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text UNIQUE NOT NULL,
@@ -54,21 +29,19 @@ CREATE TABLE menu_items (
   updated_at timestamptz DEFAULT now()
 );
 
--- Tabela de Pedidos
 CREATE TABLE orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  table_number integer NOT NULL,
-  status text DEFAULT 'pending',  -- pending, preparing, ready, completed, cancelled
+  assigned_to uuid REFERENCES users(id) ON DELETE SET NULL,
+  status text DEFAULT 'pending',
   total decimal(10,2) DEFAULT 0,
-  payment_method text,             -- NOVO: opções de pagamento
-  observations text,               -- NOVO: observações do pedido
-  hidden boolean DEFAULT false,    -- soft delete
+  payment_method text,
+  observations text,
+  hidden boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
--- Tabela de Itens do Pedido
 CREATE TABLE order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -78,208 +51,171 @@ CREATE TABLE order_items (
   created_at timestamptz DEFAULT now()
 );
 
--- ============================================================================
--- 2. HABILITAR ROW LEVEL SECURITY (RLS)
--- ============================================================================
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
--- ============================================================================
--- 3. CRIAR ÍNDICES PARA PERFORMANCE
--- ============================================================================
 
--- Índices para autenticação multi-role
 CREATE INDEX idx_users_is_admin ON users(is_admin);
 CREATE INDEX idx_users_is_employee ON users(is_employee);
 CREATE INDEX idx_users_roles ON users(is_admin, is_employee);
+CREATE INDEX idx_users_username ON users(username);
 
--- Índices para menu
+
 CREATE INDEX idx_menu_items_category ON menu_items(category);
 CREATE INDEX idx_menu_items_active ON menu_items(active);
+CREATE INDEX idx_menu_items_category_active ON menu_items(category, active);
 
--- Índices para pedidos
 CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_assigned_to ON orders(assigned_to);
 CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_hidden ON orders(hidden);
 CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
+CREATE INDEX idx_orders_user_status ON orders(user_id, status);
+CREATE INDEX idx_orders_assigned_status ON orders(assigned_to, status);
 
--- Índices para itens de pedido
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_order_items_menu_item_id ON order_items(menu_item_id);
-
--- ============================================================================
--- 4. DESABILITAR RLS POLICIES ANTIGAS (se existirem)
--- ============================================================================
 
 DROP POLICY IF EXISTS "Users can read their own data" ON users;
 DROP POLICY IF EXISTS "Admins can read all users" ON users;
 DROP POLICY IF EXISTS "Admins can update users" ON users;
+
 DROP POLICY IF EXISTS "Anyone can view active menu items" ON menu_items;
 DROP POLICY IF EXISTS "Admins can view all menu items" ON menu_items;
 DROP POLICY IF EXISTS "Admins can insert menu items" ON menu_items;
 DROP POLICY IF EXISTS "Admins can update menu items" ON menu_items;
 DROP POLICY IF EXISTS "Admins can delete menu items" ON menu_items;
+
 DROP POLICY IF EXISTS "Users can view their own orders" ON orders;
 DROP POLICY IF EXISTS "Users can create their own orders" ON orders;
 DROP POLICY IF EXISTS "Admins can view all orders" ON orders;
 DROP POLICY IF EXISTS "Admins can update all orders" ON orders;
 DROP POLICY IF EXISTS "Employees can view all orders" ON orders;
 DROP POLICY IF EXISTS "Employees can update order status" ON orders;
+
 DROP POLICY IF EXISTS "Users can view items from their orders" ON order_items;
 DROP POLICY IF EXISTS "Users can create items for their orders" ON order_items;
 DROP POLICY IF EXISTS "Admins can view all order items" ON order_items;
+DROP POLICY IF EXISTS "Employees can view all order items" ON order_items;
 
--- ============================================================================
--- 5. CRIAR RLS POLICIES - USUÁRIOS
--- ============================================================================
-
--- Clientes podem ver seus próprios dados
 CREATE POLICY "Users can read their own data"
   ON users FOR SELECT
   TO authenticated
   USING (id = auth.uid());
 
--- Admins podem ver todos os usuários
 CREATE POLICY "Admins can read all users"
   ON users FOR SELECT
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Admins podem atualizar usuários
+CREATE POLICY "Admins can insert users"
+  ON users FOR INSERT
+  TO authenticated
+  WITH CHECK ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
+
 CREATE POLICY "Admins can update users"
   ON users FOR UPDATE
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- ============================================================================
--- 6. CRIAR RLS POLICIES - MENU
--- ============================================================================
-
--- Clientes veem apenas itens ativos
 CREATE POLICY "Anyone can view active menu items"
   ON menu_items FOR SELECT
   TO authenticated
   USING (active = true);
 
--- Admins veem todos os itens (incluindo inativos)
 CREATE POLICY "Admins can view all menu items"
   ON menu_items FOR SELECT
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Admins podem inserir itens
 CREATE POLICY "Admins can insert menu items"
   ON menu_items FOR INSERT
   TO authenticated
   WITH CHECK ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Admins podem atualizar itens
 CREATE POLICY "Admins can update menu items"
   ON menu_items FOR UPDATE
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Admins podem deletar itens
 CREATE POLICY "Admins can delete menu items"
   ON menu_items FOR DELETE
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- ============================================================================
--- 7. CRIAR RLS POLICIES - PEDIDOS
--- ============================================================================
-
--- Clientes veem seus próprios pedidos
 CREATE POLICY "Users can view their own orders"
   ON orders FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
--- Clientes podem criar seus próprios pedidos
 CREATE POLICY "Users can create their own orders"
   ON orders FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
--- Admins veem todos os pedidos
 CREATE POLICY "Admins can view all orders"
   ON orders FOR SELECT
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Admins podem atualizar qualquer pedido
 CREATE POLICY "Admins can update all orders"
   ON orders FOR UPDATE
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Funcionários veem todos os pedidos
 CREATE POLICY "Employees can view all orders"
   ON orders FOR SELECT
   TO authenticated
-  USING ((SELECT is_employee FROM users WHERE id = auth.uid()) = true 
-    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false);
+  USING (
+    (SELECT is_employee FROM users WHERE id = auth.uid()) = true 
+    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false
+  );
 
--- Funcionários podem atualizar status dos pedidos
 CREATE POLICY "Employees can update order status"
   ON orders FOR UPDATE
   TO authenticated
-  USING ((SELECT is_employee FROM users WHERE id = auth.uid()) = true 
-    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false)
-  WITH CHECK (true);
+  USING (
+    (SELECT is_employee FROM users WHERE id = auth.uid()) = true 
+    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false
+  );
 
--- ============================================================================
--- 8. CRIAR RLS POLICIES - ITENS DO PEDIDO
--- ============================================================================
-
--- Clientes veem itens de seus próprios pedidos
 CREATE POLICY "Users can view items from their orders"
   ON order_items FOR SELECT
   TO authenticated
   USING (order_id IN (SELECT id FROM orders WHERE user_id = auth.uid()));
 
--- Clientes podem criar itens para seus próprios pedidos
 CREATE POLICY "Users can create items for their orders"
   ON order_items FOR INSERT
   TO authenticated
   WITH CHECK (order_id IN (SELECT id FROM orders WHERE user_id = auth.uid()));
 
--- Admins veem todos os itens de pedido
 CREATE POLICY "Admins can view all order items"
   ON order_items FOR SELECT
   TO authenticated
   USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
--- Funcionários veem itens de todos os pedidos
 CREATE POLICY "Employees can view all order items"
   ON order_items FOR SELECT
   TO authenticated
-  USING ((SELECT is_employee FROM users WHERE id = auth.uid()) = true 
-    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false);
-
--- ============================================================================
--- 9. INSERIR USUÁRIOS PADRÃO
--- ============================================================================
+  USING (
+    (SELECT is_employee FROM users WHERE id = auth.uid()) = true 
+    AND (SELECT is_admin FROM users WHERE id = auth.uid()) = false
+  );
 
 INSERT INTO users (username, email, phone, password_hash, is_admin, is_employee)
 VALUES
-  -- Cliente padrão (mesa)
-  ('cliente', 'cliente@allblack.com', '0000000000', '123456', false, false),
-  -- Funcionário padrão
-  ('funcionario', 'funcionario@allblack.com', '0000000000', 'func123', false, true),
-  -- Admin padrão
-  ('admin', 'admin@allblack.com', '0000000000', 'admin123', true, false)
+  ('cliente', 'cliente@acardapio.com', '0000000000', '123456', false, false),
+  ('funcionario', 'funcionario@acardapio.com', '0000000000', 'func123', false, true),
+  ('joao', 'joao@acardapio.com', '11999999999', 'joao123', false, true),
+  ('maria', 'maria@acardapio.com', '11999999998', 'maria123', false, true),
+  ('admin', 'admin@acardapio.com', '0000000000', 'admin123', true, false)
 ON CONFLICT (username) DO NOTHING;
-
--- ============================================================================
--- 10. INSERIR MENU COMPLETO
--- ============================================================================
 
 INSERT INTO menu_items (name, description, price, image_url, category, active)
 VALUES
-  -- HAMBÚRGUERES (10 itens)
   ('Black Burger Clássico', 'Hambúrguer artesanal de 180g, queijo cheddar, alface, tomate, cebola roxa e molho especial da casa', 32.90, 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg?auto=compress&cs=tinysrgb&w=800', 'hamburguer', true),
   ('All Black Bacon', 'Hambúrguer de 200g, bacon crocante, queijo suíço, cebola caramelizada e barbecue especial', 38.90, 'https://images.pexels.com/photos/1633578/pexels-photo-1633578.jpeg?auto=compress&cs=tinysrgb&w=800', 'hamburguer', true),
   ('Dark Cheddar', 'Duplo hambúrguer de 160g, duplo cheddar cremoso, picles e mostarda artesanal', 42.90, 'https://images.pexels.com/photos/580612/pexels-photo-580612.jpeg?auto=compress&cs=tinysrgb&w=800', 'hamburguer', true),
@@ -291,7 +227,6 @@ VALUES
   ('Blue Cheese Black', 'Hambúrguer com gorgonzola, nozes caramelizadas, pera grelhada e mel trufado', 44.90, 'https://images.pexels.com/photos/2983102/pexels-photo-2983102.jpeg?auto=compress&cs=tinysrgb&w=800', 'hamburguer', true),
   ('Mushroom Swiss', 'Hambúrguer com cogumelos salteados, queijo suíço derretido e molho de ervas', 37.90, 'https://images.pexels.com/photos/3616957/pexels-photo-3616957.jpeg?auto=compress&cs=tinysrgb&w=800', 'hamburguer', true),
 
-  -- BEBIDAS (12 itens)
   ('Coca-Cola 350ml', 'Refrigerante Coca-Cola tradicional gelado', 5.90, 'https://images.pexels.com/photos/2775860/pexels-photo-2775860.jpeg?auto=compress&cs=tinysrgb&w=800', 'bebidas', true),
   ('Coca-Cola Zero 350ml', 'Refrigerante Coca-Cola Zero, zero calorias', 5.90, 'https://images.pexels.com/photos/2775860/pexels-photo-2775860.jpeg?auto=compress&cs=tinysrgb&w=800', 'bebidas', true),
   ('Guaraná Antarctica 350ml', 'Refrigerante Guaraná Antarctica gelado', 5.50, 'https://images.pexels.com/photos/230588/pexels-photo-230588.jpeg?auto=compress&cs=tinysrgb&w=800', 'bebidas', true),
@@ -305,7 +240,6 @@ VALUES
   ('Milkshake de Morango 400ml', 'Milkshake cremoso de morango fresco com chantilly', 14.90, 'https://images.pexels.com/photos/372725/pexels-photo-372725.jpeg?auto=compress&cs=tinysrgb&w=800', 'bebidas', true),
   ('Milkshake de Baunilha 400ml', 'Milkshake cremoso de baunilha com chantilly', 14.90, 'https://images.pexels.com/photos/372725/pexels-photo-372725.jpeg?auto=compress&cs=tinysrgb&w=800', 'bebidas', true),
 
-  -- ACOMPANHAMENTOS (7 itens)
   ('Batata Frita Tradicional', 'Porção de batatas fritas crocantes, saladas e sequinhas', 16.90, 'https://images.pexels.com/photos/1583884/pexels-photo-1583884.jpeg?auto=compress&cs=tinysrgb&w=800', 'acompanhamento', true),
   ('Batata Frita com Cheddar e Bacon', 'Batatas fritas cobertas com cheddar derretido e bacon crocante', 22.90, 'https://images.pexels.com/photos/1893555/pexels-photo-1893555.jpeg?auto=compress&cs=tinysrgb&w=800', 'acompanhamento', true),
   ('Onion Rings', 'Anéis de cebola empanados e fritos, crocantes por fora e macios por dentro', 18.90, 'https://images.pexels.com/photos/1359326/pexels-photo-1359326.jpeg?auto=compress&cs=tinysrgb&w=800', 'acompanhamento', true),
@@ -314,14 +248,12 @@ VALUES
   ('Mandioca Frita', 'Porção de mandioca frita crocante e sequinha', 14.90, 'https://images.pexels.com/photos/1707913/pexels-photo-1707913.jpeg?auto=compress&cs=tinysrgb&w=800', 'acompanhamento', true),
   ('Polenta Frita', 'Porção de polenta frita dourada e crocante', 16.90, 'https://images.pexels.com/photos/6287519/pexels-photo-6287519.jpeg?auto=compress&cs=tinysrgb&w=800', 'acompanhamento', true),
 
-  -- ENTRADAS (5 itens)
   ('Bolinho de Bacalhau (6 unidades)', 'Bolinhos de bacalhau com cebola, salsinha e azeite, fritos até ficarem dourados', 24.90, 'https://images.pexels.com/photos/1893590/pexels-photo-1893590.jpeg?auto=compress&cs=tinysrgb&w=800', 'entrada', true),
   ('Coxinha de Frango (4 unidades)', 'Coxinhas de frango com catupiry, empanadas e fritas', 18.90, 'https://images.pexels.com/photos/1893570/pexels-photo-1893570.jpeg?auto=compress&cs=tinysrgb&w=800', 'entrada', true),
   ('Pastel de Carne (4 unidades)', 'Pastéis de carne moída com cebola, azeitona e temperos especiais', 16.90, 'https://images.pexels.com/photos/1893569/pexels-photo-1893569.jpeg?auto=compress&cs=tinysrgb&w=800', 'entrada', true),
   ('Queijo Coalho na Brasa', 'Espetinhos de queijo coalho grelhados na brasa, servidos com mel e orégano', 22.90, 'https://images.pexels.com/photos/6287518/pexels-photo-6287518.jpeg?auto=compress&cs=tinysrgb&w=800', 'entrada', true),
   ('Pão de Alho', 'Pão francês com manteiga de alho, gratinado e crocante', 12.90, 'https://images.pexels.com/photos/1893589/pexels-photo-1893589.jpeg?auto=compress&cs=tinysrgb&w=800', 'entrada', true),
 
-  -- SOBREMESAS (6 itens)
   ('Torta de Chocolate', 'Torta de chocolate meio amargo com calda quente e sorvete de creme', 16.90, 'https://images.pexels.com/photos/2144112/pexels-photo-2144112.jpeg?auto=compress&cs=tinysrgb&w=800', 'sobremesa', true),
   ('Petit Gateau', 'Bolinho de chocolate com recheio cremoso, servido quente com sorvete', 18.90, 'https://images.pexels.com/photos/2144200/pexels-photo-2144200.jpeg?auto=compress&cs=tinysrgb&w=800', 'sobremesa', true),
   ('Sorvete Sundae', 'Taça de sorvete de baunilha com calda de chocolate, chantilly e nozes', 14.90, 'https://images.pexels.com/photos/1352278/pexels-photo-1352278.jpeg?auto=compress&cs=tinysrgb&w=800', 'sobremesa', true),
@@ -334,50 +266,5 @@ ON CONFLICT (name) DO UPDATE SET
   description = EXCLUDED.description,
   price = EXCLUDED.price,
   image_url = EXCLUDED.image_url,
-  active = EXCLUDED.active;
-
--- ============================================================================
--- 11. RESUMO DAS FUNCIONALIDADES
--- ============================================================================
-
-/*
-  TABELAS CRIADAS:
-  ✅ users - Usuários com suporte a 3 papéis (cliente, funcionário, admin)
-  ✅ menu_items - Itens do menu com categorias (40 itens padrão)
-  ✅ orders - Pedidos com status e observações
-  ✅ order_items - Itens dentro de cada pedido
-
-  USUÁRIOS PADRÃO:
-  ✅ cliente (sem senha)
-  ✅ funcionario (senha: func123)
-  ✅ admin (senha: admin123)
-
-  CATEGORIAS DE MENU:
-  ✅ hamburguer (10 itens)
-  ✅ bebidas (12 itens)
-  ✅ acompanhamento (7 itens)
-  ✅ entrada (5 itens)
-  ✅ sobremesa (6 itens)
-
-  RLS POLICIES:
-  ✅ Clientes veem menu ativo e seus próprios pedidos
-  ✅ Funcionários veem todos os pedidos e podem atualizar status
-  ✅ Admins têm acesso total
-
-  ÍNDICES:
-  ✅ Roles (is_admin, is_employee)
-  ✅ Menu (categoria, active)
-  ✅ Pedidos (user_id, status, created_at)
-  ✅ Itens de pedido (order_id, menu_item_id)
-
-  STATUS DOS PEDIDOS:
-  ✅ pending (amarelo) - Aguardando aprovação
-  ✅ preparing (azul) - Sendo preparado
-  ✅ ready (verde) - Pronto para retirada
-  ✅ completed (cinza) - Concluído
-  ✅ cancelled (vermelho) - Cancelado
-*/
-
--- ============================================================================
--- SCHEMA COMPLETO E FUNCIONAL PARA PRODUCTION
--- ============================================================================
+  active = EXCLUDED.active,
+  updated_at = now();

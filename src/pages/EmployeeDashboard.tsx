@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { LogOut, Clock, CheckCircle, ChefHat, Utensils } from "lucide-react";
+import { LogOut, ChevronDown, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase, Order, OrderItem, MenuItem } from "../lib/supabase";
+import { supabase, Order } from "../lib/supabase";
+import { toast } from "react-toastify";
 
 const formatOrderNumericId = (id: string) => {
   let hash = 0;
@@ -12,24 +13,78 @@ const formatOrderNumericId = (id: string) => {
   return String(hash).padStart(3, "0");
 };
 
+const getPaymentMethodLabel = (paymentMethod: string) => {
+  switch (paymentMethod) {
+    case "debit":
+      return "Débito";
+    case "credit":
+      return "Crédito";
+    case "cash":
+      return "Dinheiro";
+    case "pix":
+      return "PIX";
+    default:
+      return paymentMethod;
+  }
+};
+
 export default function EmployeeDashboard() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const fetchOrders = async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select("*, users(username)")
-      .eq("hidden", false)
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: false });
+    try {
+      // Primeiro busca os pedidos básicos
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("hidden", false)
+        .order("created_at", { ascending: false });
 
-    if (data) {
-      setOrders(data as any[]);
+      if (ordersError) {
+        console.error("Erro ao buscar pedidos:", ordersError);
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      if (!ordersData || ordersData.length === 0) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      // Busca os usuários
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("id, username");
+
+      // Busca os itens de cada pedido
+      const orderIds = ordersData.map((o) => o.id);
+      const { data: itemsData } = await supabase
+        .from("order_items")
+        .select("*, menu_items(*)")
+        .in("order_id", orderIds);
+
+      // Monta os dados completos
+      const completeOrders = ordersData.map((order) => {
+        const user = usersData?.find((u) => u.id === order.user_id);
+        const items =
+          itemsData?.filter((item) => item.order_id === order.id) || [];
+        return {
+          ...order,
+          users: user ? { username: user.username } : { username: "Cliente" },
+          order_items: items,
+        };
+      });
+
+      setOrders(completeOrders as any[]);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erro na busca de pedidos:", error);
+      setOrders([]);
       setLoading(false);
     }
   };
@@ -41,7 +96,7 @@ export default function EmployeeDashboard() {
       .eq("active", true);
 
     if (data) {
-      setMenuItems(data);
+      // Not needed anymore, but keeping for compatibility
     }
   };
 
@@ -57,7 +112,7 @@ export default function EmployeeDashboard() {
       .eq("order_id", orderId);
 
     if (data) {
-      setOrderItems(data);
+      // Not needed anymore, but keeping for compatibility
     }
   };
 
@@ -73,20 +128,77 @@ export default function EmployeeDashboard() {
   }, []);
 
   const handleOrderClick = async (order: Order) => {
-    setSelectedOrder(order);
-    await fetchOrderItems(order.id);
+    // Not needed anymore
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    await supabase
-      .from("orders")
-      .update({ status: newStatus })
-      .eq("id", orderId);
+    try {
+      const updateData: any = { status: newStatus };
 
-    if (selectedOrder?.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
+      // Salvar assigned_to quando aceitar (preparing) ou cancelar
+      if (
+        (newStatus === "preparing" || newStatus === "cancelled") &&
+        user?.id
+      ) {
+        // Verificar se o funcionário existe no banco antes de salvar
+        const { data: employeeExists } = await supabase
+          .from("users")
+          .select("id")
+          .eq("id", user.id)
+          .single();
+
+        if (employeeExists) {
+          updateData.assigned_to = user.id;
+        } else {
+          console.warn("Funcionário não encontrado no banco de dados");
+          toast.warn(
+            "Aviso: Não foi possível atribuir o pedido a você. Por favor, faça login novamente.",
+          );
+        }
+      }
+
+      const { error } = await supabase
+        .from("orders")
+        .update(updateData)
+        .eq("id", orderId);
+
+      if (error) {
+        toast.error("Erro ao atualizar pedido: " + error.message);
+        return;
+      }
+
+      // Mensagens de feedback baseadas no status
+      const statusMessages: Record<string, string> = {
+        preparing: "Pedido aceito! Você começou a preparar.",
+        ready: "Pedido pronto para entrega!",
+        completed: "Pedido finalizado!",
+        cancelled: "Pedido cancelado.",
+      };
+
+      const message = statusMessages[newStatus] || "Pedido atualizado!";
+      toast.success(message);
+
+      fetchOrders();
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast.error("Erro ao atualizar pedido. Tente novamente.");
     }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    await supabase.from("orders").update({ hidden: true }).eq("id", orderId);
+    toast.error("Pedido removido da lista!");
     fetchOrders();
+  };
+
+  const toggleUserAccordion = (username: string) => {
+    const newSet = new Set(expandedUsers);
+    if (newSet.has(username)) {
+      newSet.delete(username);
+    } else {
+      newSet.add(username);
+    }
+    setExpandedUsers(newSet);
   };
 
   const getStatusColor = (status: string) => {
@@ -144,207 +256,203 @@ export default function EmployeeDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Orders List */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-4 border-b">
-                <h2 className="text-xl font-bold text-black">Pedidos</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Total: {orders.length}
-                </p>
-              </div>
-              <div className="max-h-[70vh] overflow-y-auto">
-                {orders.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    Nenhum pedido no momento
-                  </div>
-                ) : (
-                  <div className="space-y-2 p-4">
-                    {orders.map((order) => (
-                      <button
-                        key={order.id}
-                        onClick={() => handleOrderClick(order)}
-                        className={`w-full text-left p-3 rounded-lg transition ${
-                          selectedOrder?.id === order.id
-                            ? "bg-black text-white"
-                            : "bg-gray-50 hover:bg-gray-100"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold">
-                              Pedido da Mesa{" "}
-                              {(selectedOrder as any)?.users?.username}
-                            </h4>
-                            <p
-                              className={`text-xs mt-1 ${selectedOrder?.id === order.id ? "text-gray-300" : "text-gray-600"}`}
-                            >
-                              R$ {order.total.toFixed(2)}
-                            </p>
-                          </div>
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(
-                              order.status,
-                            )}`}
-                          >
-                            {getStatusLabel(order.status)}
-                          </span>
-                        </div>
-                        <p
-                          className={`text-xs mt-2 ${selectedOrder?.id === order.id ? "text-gray-400" : "text-gray-500"}`}
-                        >
-                          {new Date(order.created_at).toLocaleTimeString(
-                            "pt-BR",
-                          )}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        <div>
+          <h2 className="text-2xl font-bold text-black mb-6">Pedidos</h2>
+          <div className="space-y-4">
+            {(() => {
+              const ordersByUser = orders
+                .filter((order) => !order.hidden)
+                .reduce(
+                  (acc, order) => {
+                    const username = order.users?.username || "Cliente";
+                    if (!acc[username]) acc[username] = [];
+                    acc[username].push(order);
+                    return acc;
+                  },
+                  {} as Record<string, typeof orders>,
+                );
 
-          {/* Order Details */}
-          <div className="lg:col-span-2">
-            {selectedOrder ? (
-              <div className="space-y-4">
-                {/* Status Card */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-2xl font-bold text-black">
-                        Pedido da Mesa {(selectedOrder as any)?.users?.username}
-                      </h3>
-                      <p className="text-gray-600 text-sm mt-1">
-                        Pedido #{formatOrderNumericId(selectedOrder.id)}
-                      </p>
-                      <p className="text-gray-600 text-sm mt-2">
-                        {new Date(selectedOrder.created_at).toLocaleString(
-                          "pt-BR",
-                        )}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded font-semibold ${getStatusColor(
-                        selectedOrder.status,
-                      )}`}
+              return Object.keys(ordersByUser).length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Não há pedidos no momento
+                </p>
+              ) : (
+                Object.entries(ordersByUser).map(([username, userOrders]) => (
+                  <div key={username} className="border rounded-lg bg-gray-50">
+                    <button
+                      onClick={() => toggleUserAccordion(username)}
+                      className="w-full text-left p-4 font-bold text-lg text-black hover:bg-gray-100 transition flex items-center justify-between"
                     >
-                      {getStatusLabel(selectedOrder.status)}
-                    </span>
-                  </div>
-
-                  {/* Status Display */}
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg text-center">
-                    {selectedOrder.status === "pending" && (
-                      <div className="flex flex-col items-center gap-3">
-                        <Clock className="w-12 h-12 text-yellow-600" />
-                        <h4 className="text-lg font-bold text-gray-900">
-                          Aguardando Confirmação
-                        </h4>
-                        <button
-                          onClick={() =>
-                            updateOrderStatus(selectedOrder.id, "preparing")
-                          }
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition mt-2"
-                        >
-                          Iniciar Preparo
-                        </button>
-                      </div>
-                    )}
-
-                    {selectedOrder.status === "preparing" && (
-                      <div className="flex flex-col items-center gap-3">
-                        <ChefHat className="w-12 h-12 text-blue-600" />
-                        <h4 className="text-lg font-bold text-gray-900">
-                          Preparando Pedido
-                        </h4>
-                        <button
-                          onClick={() =>
-                            updateOrderStatus(selectedOrder.id, "ready")
-                          }
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition mt-2"
-                        >
-                          Marcar como Pronto
-                        </button>
-                      </div>
-                    )}
-
-                    {selectedOrder.status === "ready" && (
-                      <div className="flex flex-col items-center gap-3">
-                        <Utensils className="w-12 h-12 text-green-600" />
-                        <h4 className="text-lg font-bold text-gray-900">
-                          Pedido Pronto
-                        </h4>
-                        <button
-                          onClick={() =>
-                            updateOrderStatus(selectedOrder.id, "completed")
-                          }
-                          className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition mt-2"
-                        >
-                          Finalizar Pedido
-                        </button>
-                      </div>
-                    )}
-
-                    {selectedOrder.status === "completed" && (
-                      <div className="flex flex-col items-center gap-3">
-                        <CheckCircle className="w-12 h-12 text-gray-600" />
-                        <h4 className="text-lg font-bold text-gray-900">
-                          Pedido Finalizado
-                        </h4>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Items Card */}
-                {orderItems.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h4 className="text-lg font-bold text-black mb-4">
-                      Itens do Pedido
-                    </h4>
-                    <div className="space-y-3">
-                      {orderItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                        >
-                          <div>
-                            <h5 className="font-semibold text-gray-900">
-                              {
-                                menuItems.find(
-                                  (m) => m.id === item.menu_item_id,
-                                )?.name
-                              }
-                            </h5>
-                            <p className="text-sm text-gray-600">
-                              Quantidade: {item.quantity}
-                            </p>
-                          </div>
-                          <p className="font-bold text-gray-900">
-                            R$ {(item.price * item.quantity).toFixed(2)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                      <span className="text-lg font-bold">Total:</span>
-                      <span className="text-2xl font-bold text-black">
-                        R$ {selectedOrder.total.toFixed(2)}
+                      <span className="flex items-center gap-2">
+                        Pedidos da Mesa {username}
+                        {userOrders.some((o) => o.status === "pending") && (
+                          <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                            Novo
+                          </span>
+                        )}
+                        {userOrders.every((o) => o.status === "cancelled") && (
+                          <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">
+                            Cancelado
+                          </span>
+                        )}
                       </span>
-                    </div>
+                      <ChevronDown
+                        className={`w-5 h-5 transition-transform ${expandedUsers.has(username) ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    {expandedUsers.has(username) && (
+                      <div className="p-4 space-y-4">
+                        {userOrders.map((order) => (
+                          <div
+                            key={order.id}
+                            className="border rounded-lg p-4 bg-white"
+                          >
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <h3 className="font-bold text-lg text-black">
+                                  Pedido da {order.users?.username || "Cliente"}
+                                </h3>
+                                <p className="text-gray-600">
+                                  Pedido #{formatOrderNumericId(order.id)}
+                                </p>
+                                <p className="text-gray-600">
+                                  {new Date(order.created_at).toLocaleString(
+                                    "pt-BR",
+                                  )}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-black">
+                                  R$ {order.total.toFixed(2)}
+                                </p>
+                                {order.status === "pending" && (
+                                  <div className="mt-2 flex gap-2">
+                                    <button
+                                      onClick={() =>
+                                        updateOrderStatus(order.id, "preparing")
+                                      }
+                                      className="px-3 py-1 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition"
+                                    >
+                                      Aceitar
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        updateOrderStatus(order.id, "cancelled")
+                                      }
+                                      className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                )}
+                                {order.status === "preparing" && (
+                                  <button
+                                    onClick={() =>
+                                      updateOrderStatus(order.id, "ready")
+                                    }
+                                    className="mt-2 px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
+                                  >
+                                    Preparando
+                                  </button>
+                                )}
+                                {order.status === "ready" && (
+                                  <button
+                                    onClick={() =>
+                                      updateOrderStatus(order.id, "completed")
+                                    }
+                                    className="mt-2 px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition"
+                                  >
+                                    Concluído
+                                  </button>
+                                )}
+                                {order.status === "completed" && (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <span className="px-3 py-1 bg-gray-500 text-white rounded-lg text-sm">
+                                      Finalizado
+                                    </span>
+                                    <button
+                                      onClick={() =>
+                                        handleDeleteOrder(order.id)
+                                      }
+                                      className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                                      title="Ocultar pedido"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                                {order.status === "cancelled" && (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <span className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">
+                                      Cancelado
+                                    </span>
+                                    <button
+                                      onClick={() =>
+                                        handleDeleteOrder(order.id)
+                                      }
+                                      className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                                      title="Ocultar pedido"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {order.order_items?.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="text-sm text-gray-700"
+                                >
+                                  <div className="flex justify-between">
+                                    <span>
+                                      {item.quantity}x {item.menu_items?.name}
+                                    </span>
+                                    <span>
+                                      R${" "}
+                                      {(item.price * item.quantity).toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Informações adicionais do pedido */}
+                            {(order.payment_method || order.observations) && (
+                              <div className="mt-4 space-y-2">
+                                {order.payment_method && (
+                                  <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                    <p className="text-sm text-gray-700">
+                                      <strong className="text-gray-900">
+                                        Forma de Pagamento:
+                                      </strong>{" "}
+                                      {getPaymentMethodLabel(
+                                        order.payment_method,
+                                      )}
+                                    </p>
+                                  </div>
+                                )}
+                                {order.observations && (
+                                  <div className="p-3 bg-gray-50 rounded-lg border-l-4 border-blue-500">
+                                    <p className="text-sm text-gray-700">
+                                      <strong className="text-gray-900">
+                                        Observação:
+                                      </strong>{" "}
+                                      {order.observations}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                <p className="text-gray-500 text-lg">
-                  Selecione um pedido para ver detalhes
-                </p>
-              </div>
-            )}
+                ))
+              );
+            })()}
           </div>
         </div>
       </main>

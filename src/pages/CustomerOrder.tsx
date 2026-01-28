@@ -315,12 +315,13 @@ export default function CustomerOrder() {
       console.log("Payment method:", paymentMethod);
       console.log("Observations:", observations);
 
-      // Preparar dados do pedido - tentar apenas campos básicos primeiro
+      // Preparar dados do pedido com todos os campos
       const basicOrderData = {
         user_id: user.id,
-        table_number: 0,
         status: "pending",
         total,
+        payment_method: paymentMethod || null,
+        observations: observations || null,
       };
 
       console.log("Basic order data:", basicOrderData);
@@ -337,30 +338,6 @@ export default function CustomerOrder() {
         throw new Error(
           `Erro ao criar pedido: ${orderError?.message || "Erro desconhecido"}`,
         );
-      }
-
-      // Tentar atualizar com campos adicionais se fornecidos
-      if (paymentMethod || observations) {
-        const updateData: any = {};
-        if (paymentMethod) updateData.payment_method = paymentMethod;
-        if (observations) updateData.observations = observations;
-
-        console.log("Update data:", updateData);
-
-        const { error: updateError } = await supabase
-          .from("orders")
-          .update(updateData)
-          .eq("id", insertedOrder.id);
-
-        console.log("Update result:", updateError);
-
-        if (updateError) {
-          console.warn(
-            "Não foi possível salvar campos adicionais:",
-            updateError,
-          );
-          // Não lançar erro, pois o pedido básico foi criado
-        }
       }
 
       // Inserir os itens do pedido

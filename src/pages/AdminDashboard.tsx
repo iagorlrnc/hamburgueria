@@ -14,7 +14,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { supabase, MenuItem, Order, OrderItem, User } from "../lib/supabase";
 import { toast } from "react-toastify";
 
-type TabType = "dashboard" | "menu" | "orders" | "users";
+type TabType = "dashboard" | "menu" | "orders" | "users" | "performance";
 
 const getPaymentMethodLabel = (paymentMethod: string) => {
   switch (paymentMethod) {
@@ -73,6 +73,16 @@ export default function AdminDashboard() {
     is_employee: false,
   });
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [employeePerformance, setEmployeePerformance] = useState<
+    Array<{
+      userId: string;
+      username: string;
+      totalOrders: number;
+      totalRevenue: number;
+      completedOrders: number;
+      averageOrderValue: number;
+    }>
+  >([]);
 
   useEffect(() => {
     fetchMenuItems();
@@ -90,6 +100,12 @@ export default function AdminDashboard() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "performance") {
+      calculateEmployeePerformance();
+    }
+  }, [activeTab]);
+
   const fetchMenuItems = async () => {
     const { data } = await supabase
       .from("menu_items")
@@ -102,22 +118,46 @@ export default function AdminDashboard() {
   };
 
   const fetchOrders = async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select(
-        `
-        *,
-        users (
-          username
-        ),
-        order_items (
-          *,
-          menu_items (*)
-        )
-      `,
-      )
-      .order("created_at", { ascending: false });
-    if (data) setOrders(data);
+    try {
+      // Buscar pedidos básicos
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (ordersError || !ordersData) {
+        console.error("Erro ao buscar pedidos:", ordersError);
+        setOrders([]);
+        return;
+      }
+
+      // Buscar usuários
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("id, username");
+
+      // Buscar itens de cada pedido
+      const { data: itemsData } = await supabase
+        .from("order_items")
+        .select("*, menu_items(*)");
+
+      // Montar dados completos
+      const completeOrders = ordersData.map((order) => {
+        const user = usersData?.find((u) => u.id === order.user_id);
+        const items =
+          itemsData?.filter((item) => item.order_id === order.id) || [];
+        return {
+          ...order,
+          users: user ? { username: user.username } : { username: "Cliente" },
+          order_items: items,
+        };
+      });
+
+      setOrders(completeOrders as any[]);
+    } catch (error) {
+      console.error("Erro na busca de pedidos:", error);
+      setOrders([]);
+    }
   };
 
   const fetchUsers = async () => {
@@ -126,6 +166,59 @@ export default function AdminDashboard() {
       .select("*")
       .order("created_at", { ascending: false });
     if (data) setUsers(data);
+  };
+
+  const calculateEmployeePerformance = async () => {
+    // Buscar todos os funcionários
+    const { data: employees } = await supabase
+      .from("users")
+      .select("*")
+      .eq("is_employee", true);
+
+    if (!employees) return;
+
+    // Calcular performance de cada funcionário
+    const performance = await Promise.all(
+      employees.map(async (employee) => {
+        // Buscar todos os pedidos onde esse funcionário foi atribuído
+        // e que estão em status "ready", "completed" ou "cancelled"
+        const { data: employeeOrders } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("assigned_to", employee.id)
+          .neq("status", "pending")
+          .neq("status", "preparing");
+
+        const totalOrders = employeeOrders?.length || 0;
+        const completedOrders =
+          employeeOrders?.filter((o) => o.status === "completed").length || 0;
+        const cancelledOrders =
+          employeeOrders?.filter((o) => o.status === "cancelled").length || 0;
+
+        // Contar renda apenas de pedidos COMPLETADOS, não contar cancelados
+        const totalRevenue =
+          employeeOrders
+            ?.filter((o) => o.status === "completed")
+            .reduce((sum, order) => sum + order.total, 0) || 0;
+
+        const averageOrderValue =
+          completedOrders > 0 ? totalRevenue / completedOrders : 0;
+
+        return {
+          userId: employee.id,
+          username: employee.username,
+          totalOrders,
+          completedOrders,
+          cancelledOrders,
+          totalRevenue,
+          averageOrderValue,
+        };
+      }),
+    );
+
+    setEmployeePerformance(
+      performance.sort((a, b) => b.totalRevenue - a.totalRevenue),
+    );
   };
 
   const handleSaveMenuItem = async (e: React.FormEvent) => {
@@ -278,8 +371,39 @@ export default function AdminDashboard() {
   };
 
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
-    await supabase.from("orders").update({ status }).eq("id", orderId);
-    fetchOrders();
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status })
+        .eq("id", orderId);
+
+      if (error) {
+        toast.error("Erro ao atualizar pedido: " + error.message);
+        return;
+      }
+
+      // Mensagens de feedback baseadas no status
+      const statusMessages: Record<string, string> = {
+        pending: "Pedido retornado para pendente",
+        preparing: "Pedido marcado como preparando",
+        ready: "Pedido marcado como pronto!",
+        completed: "Pedido finalizado!",
+        cancelled: "Pedido cancelado",
+      };
+
+      const message = statusMessages[status] || "Pedido atualizado!";
+      toast.success(message);
+
+      // Atualizar dados locais
+      fetchOrders();
+      // Se estiver na aba de performance, recalcular
+      if (activeTab === "performance") {
+        calculateEmployeePerformance();
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast.error("Erro ao atualizar pedido. Tente novamente.");
+    }
   };
 
   const handleDeleteOrder = async (orderId: string) => {
@@ -433,6 +557,17 @@ export default function AdminDashboard() {
               >
                 <Users className="w-5 h-5" />
                 <span className="max-[480px]:hidden">Usuários</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("performance")}
+                className={`flex-1 px-6 py-4 font-semibold flex items-center justify-center gap-2 transition ${
+                  activeTab === "performance"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span className="max-[480px]:hidden">Performance</span>
               </button>
             </div>
           </div>
@@ -1000,6 +1135,13 @@ export default function AdminDashboard() {
                                     Novo
                                   </span>
                                 )}
+                                {userOrders.every(
+                                  (o) => o.status === "cancelled",
+                                ) && (
+                                  <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">
+                                    Cancelado
+                                  </span>
+                                )}
                               </span>
                               <ChevronDown
                                 className={`w-5 h-5 transition-transform ${expandedUsers.has(username) ? "rotate-180" : ""}`}
@@ -1193,101 +1335,281 @@ export default function AdminDashboard() {
                     Adicionar Usuário
                   </button>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-black">
-                          Usuário
-                        </th>
-                        <th className="px-4 py-3 text-left text-black">
-                          Telefone
-                        </th>
-                        <th className="px-4 py-3 text-left text-black">
-                          Admin
-                        </th>
-                        <th className="px-4 py-3 text-left text-black">
-                          Funcionário
-                        </th>
-                        <th className="px-4 py-3 text-center text-black">
-                          Ações
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user) => (
-                        <tr key={user.id} className="border-b">
-                          <td className="px-4 py-3 text-black">
-                            {user.username}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {user.phone}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-semibold ${
-                                user.is_admin
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {user.is_admin ? "Sim" : "Não"}
+                <div className="space-y-4">
+                  {(() => {
+                    const usersByType = users.reduce(
+                      (acc, user) => {
+                        let type = "Cliente";
+                        if (user.is_admin) type = "Admin";
+                        else if (user.is_employee) type = "Funcionário";
+
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(user);
+                        return acc;
+                      },
+                      {} as Record<string, typeof users>,
+                    );
+
+                    return Object.entries(usersByType)
+                      .sort(([typeA], [typeB]) => {
+                        const order = { Cliente: 0, Funcionário: 1, Admin: 2 };
+                        return (
+                          (order[typeA as keyof typeof order] || 3) -
+                          (order[typeB as keyof typeof order] || 3)
+                        );
+                      })
+                      .map(([type, typeUsers]) => (
+                        <div
+                          key={type}
+                          className="border rounded-lg bg-gray-50"
+                        >
+                          <button
+                            onClick={() => toggleUserAccordion(type)}
+                            className="w-full text-left p-4 font-bold text-lg text-black hover:bg-gray-100 transition flex items-center justify-between"
+                          >
+                            <span className="flex items-center gap-2">
+                              {type}
+                              <span className="bg-black text-white text-xs px-2 py-1 rounded-full">
+                                {typeUsers.length}
+                              </span>
                             </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-semibold ${
-                                user.is_employee
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {user.is_employee ? "Sim" : "Não"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2 justify-center flex-wrap">
-                              <button
-                                onClick={() =>
-                                  handleToggleAdmin(user.id, user.is_admin)
-                                }
-                                className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition text-sm"
-                                title="Gerenciar permissão de admin"
-                              >
-                                {user.is_admin
-                                  ? "Remover Admin"
-                                  : "Tornar Admin"}
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleToggleEmployee(
-                                    user.id,
-                                    user.is_employee,
-                                  )
-                                }
-                                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
-                                title="Gerenciar permissão de funcionário"
-                              >
-                                {user.is_employee
-                                  ? "Remover Func"
-                                  : "Tornar Func"}
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDeleteUser(user.id, user.username)
-                                }
-                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Remover
-                              </button>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform ${expandedUsers.has(type) ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                          {expandedUsers.has(type) && (
+                            <div className="p-4">
+                              <div className="overflow-x-auto">
+                                <table className="w-full">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-4 py-3 text-left text-black">
+                                        Usuário
+                                      </th>
+                                      <th className="px-4 py-3 text-left text-black">
+                                        Telefone
+                                      </th>
+                                      {type !== "Cliente" && (
+                                        <>
+                                          <th className="px-4 py-3 text-left text-black">
+                                            Admin
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-black">
+                                            Funcionário
+                                          </th>
+                                        </>
+                                      )}
+                                      <th className="px-4 py-3 text-center text-black">
+                                        Ações
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {typeUsers.map((user) => (
+                                      <tr key={user.id} className="border-b">
+                                        <td className="px-4 py-3 text-black">
+                                          {user.username}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">
+                                          {user.phone || "-"}
+                                        </td>
+                                        {type !== "Cliente" && (
+                                          <>
+                                            <td className="px-4 py-3">
+                                              <span
+                                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                  user.is_admin
+                                                    ? "bg-green-100 text-green-800"
+                                                    : "bg-gray-100 text-gray-800"
+                                                }`}
+                                              >
+                                                {user.is_admin ? "Sim" : "Não"}
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                              <span
+                                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                  user.is_employee
+                                                    ? "bg-blue-100 text-blue-800"
+                                                    : "bg-gray-100 text-gray-800"
+                                                }`}
+                                              >
+                                                {user.is_employee
+                                                  ? "Sim"
+                                                  : "Não"}
+                                              </span>
+                                            </td>
+                                          </>
+                                        )}
+                                        <td className="px-4 py-3">
+                                          <div className="flex gap-2 justify-center flex-wrap">
+                                            {type === "Cliente" ? (
+                                              <>
+                                                <button
+                                                  onClick={() =>
+                                                    handleToggleEmployee(
+                                                      user.id,
+                                                      user.is_employee,
+                                                    )
+                                                  }
+                                                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
+                                                  title="Gerenciar permissão de funcionário"
+                                                >
+                                                  Tornar Func
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleToggleAdmin(
+                                                      user.id,
+                                                      user.is_admin,
+                                                    )
+                                                  }
+                                                  className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition text-sm"
+                                                  title="Gerenciar permissão de admin"
+                                                >
+                                                  Tornar Admin
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <button
+                                                  onClick={() =>
+                                                    handleToggleAdmin(
+                                                      user.id,
+                                                      user.is_admin,
+                                                    )
+                                                  }
+                                                  className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition text-sm flex-1 min-w-24 justify-center"
+                                                  title="Gerenciar permissão de admin"
+                                                >
+                                                  {user.is_admin
+                                                    ? "Remover Admin"
+                                                    : "Tornar Admin"}
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleToggleEmployee(
+                                                      user.id,
+                                                      user.is_employee,
+                                                    )
+                                                  }
+                                                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm flex-1 min-w-24 justify-center"
+                                                  title="Gerenciar permissão de funcionário"
+                                                >
+                                                  {user.is_employee
+                                                    ? "Remover Func"
+                                                    : "Tornar Func"}
+                                                </button>
+                                              </>
+                                            )}
+                                            <button
+                                              onClick={() =>
+                                                handleDeleteUser(
+                                                  user.id,
+                                                  user.username,
+                                                )
+                                              }
+                                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm flex items-center gap-1"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              Remover
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          )}
+                        </div>
+                      ));
+                  })()}
                 </div>
+              </div>
+            )}
+
+            {activeTab === "performance" && (
+              <div>
+                <h2 className="text-2xl font-bold text-black mb-6">
+                  Performance dos Funcionários
+                </h2>
+                {employeePerformance.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Nenhum funcionário encontrado ou sem dados de performance
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-black">
+                            Funcionário
+                          </th>
+                          <th className="px-4 py-3 text-center text-black">
+                            Total de Pedidos
+                          </th>
+                          <th className="px-4 py-3 text-center text-black">
+                            Pedidos Cancelados
+                          </th>
+                          <th className="px-4 py-3 text-center text-black">
+                            Renda Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeePerformance.map((emp) => (
+                          <tr
+                            key={emp.userId}
+                            className="border-b hover:bg-gray-50"
+                          >
+                            <td className="px-4 py-3 text-black font-semibold">
+                              {emp.username}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                {emp.totalOrders}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                {emp.cancelledOrders}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center text-black font-bold text-lg">
+                              R$ {emp.totalRevenue.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Resumo Geral */}
+                    <div className="mt-6 grid grid-cols-2 md:grid-cols-2 gap-4">
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="text-sm text-gray-600">
+                          Total de Pedidos
+                        </p>
+                        <p className="text-3xl font-bold text-blue-600">
+                          {employeePerformance.reduce(
+                            (sum, emp) => sum + emp.totalOrders,
+                            0,
+                          )}
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <p className="text-sm text-gray-600">Renda Total</p>
+                        <p className="text-3xl font-bold text-purple-600">
+                          R${" "}
+                          {employeePerformance
+                            .reduce((sum, emp) => sum + emp.totalRevenue, 0)
+                            .toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
