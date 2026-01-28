@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LogOut, ChevronDown, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase, Order } from "../lib/supabase";
+import { supabase, Order, OrderItem, MenuItem } from "../lib/supabase";
 import { toast } from "react-toastify";
 
 const formatOrderNumericId = (id: string) => {
@@ -71,11 +71,17 @@ export default function EmployeeDashboard() {
       // Monta os dados completos
       const completeOrders = ordersData.map((order) => {
         const user = usersData?.find((u) => u.id === order.user_id);
+        const assignedEmployee = usersData?.find(
+          (u) => u.id === order.assigned_to,
+        );
         const items =
           itemsData?.filter((item) => item.order_id === order.id) || [];
         return {
           ...order,
           users: user ? { username: user.username } : { username: "Cliente" },
+          assignedEmployee: assignedEmployee
+            ? { username: assignedEmployee.username }
+            : null,
           order_items: items,
         };
       });
@@ -133,9 +139,9 @@ export default function EmployeeDashboard() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      // Se o status é "preparing" ou "cancelled", marcar que esse funcionário aceitou/cancelou o pedido
       const updateData: any = { status: newStatus };
 
-      // Salvar assigned_to quando aceitar (preparing) ou cancelar
       if (
         (newStatus === "preparing" || newStatus === "cancelled") &&
         user?.id
@@ -309,9 +315,19 @@ export default function EmployeeDashboard() {
                           >
                             <div className="flex justify-between items-start mb-4">
                               <div>
-                                <h3 className="font-bold text-lg text-black">
-                                  Pedido da {order.users?.username || "Cliente"}
-                                </h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h3 className="font-bold text-lg text-black">
+                                    Pedido da{" "}
+                                    {order.users?.username || "Cliente"}
+                                  </h3>
+                                  {order.assigned_to &&
+                                    order.assignedEmployee && (
+                                      <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">
+                                        Atendido por:{" "}
+                                        {order.assignedEmployee.username}
+                                      </span>
+                                    )}
+                                </div>
                                 <p className="text-gray-600">
                                   Pedido #{formatOrderNumericId(order.id)}
                                 </p>

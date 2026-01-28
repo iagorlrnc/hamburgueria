@@ -80,9 +80,14 @@ export default function AdminDashboard() {
       totalOrders: number;
       totalRevenue: number;
       completedOrders: number;
+      cancelledOrders: number;
       averageOrderValue: number;
     }>
   >([]);
+  const [selectedEmployeeCancelledOrders, setSelectedEmployeeCancelledOrders] =
+    useState<any[]>([]);
+  const [selectedEmployeeForCancelled, setSelectedEmployeeForCancelled] =
+    useState<string | null>(null);
 
   useEffect(() => {
     fetchMenuItems();
@@ -103,6 +108,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === "performance") {
       calculateEmployeePerformance();
+
+      // Atualizar performance a cada 3 segundos
+      const interval = setInterval(() => {
+        calculateEmployeePerformance();
+      }, 3000);
+
+      return () => clearInterval(interval);
     }
   }, [activeTab]);
 
@@ -189,18 +201,16 @@ export default function AdminDashboard() {
           .neq("status", "pending")
           .neq("status", "preparing");
 
-        const totalOrders = employeeOrders?.length || 0;
+        const totalOrders =
+          employeeOrders?.filter((o) => o.status !== "cancelled").length || 0;
         const completedOrders =
           employeeOrders?.filter((o) => o.status === "completed").length || 0;
         const cancelledOrders =
           employeeOrders?.filter((o) => o.status === "cancelled").length || 0;
-
-        // Contar renda apenas de pedidos COMPLETADOS, não contar cancelados
         const totalRevenue =
           employeeOrders
             ?.filter((o) => o.status === "completed")
             .reduce((sum, order) => sum + order.total, 0) || 0;
-
         const averageOrderValue =
           completedOrders > 0 ? totalRevenue / completedOrders : 0;
 
@@ -219,6 +229,20 @@ export default function AdminDashboard() {
     setEmployeePerformance(
       performance.sort((a, b) => b.totalRevenue - a.totalRevenue),
     );
+  };
+
+  const handleViewCancelledOrders = async (employeeId: string) => {
+    setSelectedEmployeeForCancelled(employeeId);
+
+    // Buscar pedidos cancelados deste funcionário
+    const { data: cancelledOrders } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("assigned_to", employeeId)
+      .eq("status", "cancelled")
+      .order("created_at", { ascending: false });
+
+    setSelectedEmployeeCancelledOrders(cancelledOrders || []);
   };
 
   const handleSaveMenuItem = async (e: React.FormEvent) => {
@@ -279,8 +303,8 @@ export default function AdminDashboard() {
       // Gerar email e telefone padrão para clientes
       const isCliente = !userFormData.is_admin && !userFormData.is_employee;
       const email = isCliente
-        ? `mesa${userFormData.username}@cardapio.com`
-        : `${userFormData.username}@cardapio.com`;
+        ? `mesa${userFormData.username}@allblack.com`
+        : `${userFormData.username}@allblack.com`;
       const phone = userFormData.phone || "0000000000";
 
       const { error } = await supabase.from("users").insert({
@@ -396,6 +420,11 @@ export default function AdminDashboard() {
 
       // Atualizar dados locais
       fetchOrders();
+
+      // Se cancelou o pedido, recalcular performance
+      if (status === "cancelled") {
+        calculateEmployeePerformance();
+      }
       // Se estiver na aba de performance, recalcular
       if (activeTab === "performance") {
         calculateEmployeePerformance();
@@ -1548,7 +1577,7 @@ export default function AdminDashboard() {
                             Funcionário
                           </th>
                           <th className="px-4 py-3 text-center text-black">
-                            Total de Pedidos
+                            Pedidos Finalizados
                           </th>
                           <th className="px-4 py-3 text-center text-black">
                             Pedidos Cancelados
@@ -1568,12 +1597,17 @@ export default function AdminDashboard() {
                               {emp.username}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                {emp.totalOrders}
+                              <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                {emp.completedOrders}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold">
+                              <span
+                                onClick={() =>
+                                  handleViewCancelledOrders(emp.userId)
+                                }
+                                className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold cursor-pointer hover:bg-red-200 transition"
+                              >
                                 {emp.cancelledOrders}
                               </span>
                             </td>
@@ -1586,14 +1620,25 @@ export default function AdminDashboard() {
                     </table>
 
                     {/* Resumo Geral */}
-                    <div className="mt-6 grid grid-cols-2 md:grid-cols-2 gap-4">
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                         <p className="text-sm text-gray-600">
-                          Total de Pedidos
+                          Pedidos Finalizados
                         </p>
-                        <p className="text-3xl font-bold text-blue-600">
+                        <p className="text-3xl font-bold text-green-600">
                           {employeePerformance.reduce(
-                            (sum, emp) => sum + emp.totalOrders,
+                            (sum, emp) => sum + emp.completedOrders,
+                            0,
+                          )}
+                        </p>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <p className="text-sm text-gray-600">
+                          Pedidos Cancelados
+                        </p>
+                        <p className="text-3xl font-bold text-red-600">
+                          {employeePerformance.reduce(
+                            (sum, emp) => sum + emp.cancelledOrders,
                             0,
                           )}
                         </p>
@@ -1608,6 +1653,55 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Exibir pedidos cancelados do funcionário selecionado */}
+                    {selectedEmployeeForCancelled &&
+                      selectedEmployeeCancelledOrders.length > 0 && (
+                        <div className="mt-8 p-6 bg-red-50 rounded-lg border border-red-200">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-red-800">
+                              Pedidos Cancelados -{" "}
+                              {
+                                employeePerformance.find(
+                                  (emp) =>
+                                    emp.userId === selectedEmployeeForCancelled,
+                                )?.username
+                              }
+                            </h3>
+                            <button
+                              onClick={() =>
+                                setSelectedEmployeeForCancelled(null)
+                              }
+                              className="text-red-600 hover:text-red-800 font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <div className="space-y-3">
+                            {selectedEmployeeCancelledOrders.map((order) => (
+                              <div
+                                key={order.id}
+                                className="bg-white p-3 rounded border border-red-200"
+                              >
+                                <div className="flex justify-between items-center">
+                                  <span className="font-semibold">
+                                    Pedido #{order.id.substring(0, 8)}
+                                  </span>
+                                  <span className="text-sm text-gray-600">
+                                    {new Date(order.created_at).toLocaleString(
+                                      "pt-BR",
+                                    )}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-700 mt-1">
+                                  <strong>Total:</strong> R${" "}
+                                  {order.total.toFixed(2)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
@@ -1850,7 +1944,7 @@ export default function AdminDashboard() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
                     required
                   >
-                    <option value="cliente">Mesas</option>
+                    <option value="cliente">Cliente</option>
                     <option value="employee">Funcionário</option>
                     <option value="admin">Administrador</option>
                   </select>
