@@ -785,7 +785,8 @@ export default function AdminDashboard() {
                       >
                         <div>
                           <p className="font-medium text-gray-900">
-                            Pedido da Mesa {order.users?.username || "Cliente"} •{" "}
+                            Pedido da Mesa {order.users?.username || "Cliente"}{" "}
+                            •{" "}
                             {new Date(order.created_at).toLocaleString("pt-BR")}
                           </p>
                           <p className="text-sm text-gray-600">
@@ -990,7 +991,16 @@ export default function AdminDashboard() {
                               onClick={() => toggleUserAccordion(username)}
                               className="w-full text-left p-4 font-bold text-lg text-black hover:bg-gray-100 transition flex items-center justify-between"
                             >
-                              <span>Pedidos da Mesa {username}</span>
+                              <span className="flex items-center gap-2">
+                                Pedidos da Mesa {username}
+                                {userOrders.some(
+                                  (o) => o.status === "pending",
+                                ) && (
+                                  <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                                    Novo
+                                  </span>
+                                )}
+                              </span>
                               <ChevronDown
                                 className={`w-5 h-5 transition-transform ${expandedUsers.has(username) ? "rotate-180" : ""}`}
                               />

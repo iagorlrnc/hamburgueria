@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LogOut, Clock, CheckCircle, ChefHat, Utensils} from "lucide-react";
+import { LogOut, Clock, CheckCircle, ChefHat, Utensils } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase, Order, OrderItem, MenuItem } from "../lib/supabase";
 
@@ -23,13 +23,13 @@ export default function EmployeeDashboard() {
   const fetchOrders = async () => {
     const { data } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, users(username)")
       .eq("hidden", false)
       .neq("status", "cancelled")
       .order("created_at", { ascending: false });
 
     if (data) {
-      setOrders(data);
+      setOrders(data as any[]);
       setLoading(false);
     }
   };
@@ -174,7 +174,8 @@ export default function EmployeeDashboard() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-semibold">
-                              #{formatOrderNumericId(order.id)}
+                              Pedido da Mesa{" "}
+                              {(selectedOrder as any)?.users?.username}
                             </h4>
                             <p
                               className={`text-xs mt-1 ${selectedOrder?.id === order.id ? "text-gray-300" : "text-gray-600"}`}
@@ -214,9 +215,12 @@ export default function EmployeeDashboard() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-2xl font-bold text-black">
-                        Pedido #{formatOrderNumericId(selectedOrder.id)}
+                        Pedido da Mesa {(selectedOrder as any)?.users?.username}
                       </h3>
-                      <p className="text-gray-600 text-sm">
+                      <p className="text-gray-600 text-sm mt-1">
+                        Pedido #{formatOrderNumericId(selectedOrder.id)}
+                      </p>
+                      <p className="text-gray-600 text-sm mt-2">
                         {new Date(selectedOrder.created_at).toLocaleString(
                           "pt-BR",
                         )}
