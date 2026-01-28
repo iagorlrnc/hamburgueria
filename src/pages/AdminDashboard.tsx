@@ -279,8 +279,8 @@ export default function AdminDashboard() {
       // Gerar email e telefone padrão para clientes
       const isCliente = !userFormData.is_admin && !userFormData.is_employee;
       const email = isCliente
-        ? `mesa${userFormData.username}@allblack.com`
-        : `${userFormData.username}@allblack.com`;
+        ? `mesa${userFormData.username}@cardapio.com`
+        : `${userFormData.username}@cardapio.com`;
       const phone = userFormData.phone || "0000000000";
 
       const { error } = await supabase.from("users").insert({
@@ -1850,7 +1850,7 @@ export default function AdminDashboard() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
                     required
                   >
-                    <option value="cliente">Cliente</option>
+                    <option value="cliente">Mesas</option>
                     <option value="employee">Funcionário</option>
                     <option value="admin">Administrador</option>
                   </select>
